@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Rule Proxy Lab",
+  "description": "轻量 Chrome 规则分流扩展。",
+  "version": "0.0.1",
+  "permissions": [
+    "storage",
+    "proxy"
+  ],
+  "host_permissions": [
+    "https://ip125.com/*"
+  ],
+  "background": {
+    "service_worker": "assets/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Rule Proxy Lab",
+    "default_popup": "popup.html"
+  },
+  "options_page": "onboarding.html"
+}

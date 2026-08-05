@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rule Proxy Lab</title>
+  </head>
+  <body>
+    <main class="panel">
+      <div class="status-dot" aria-hidden="true"></div>
+      <p class="eyebrow">MANIFEST V3</p>
+      <h1>开发环境测试</h1>
+      <p id="status" class="status">正在读取分流状态</p>
+      <button id="check-proxy" type="button">检测局域网代理</button>
+      <button id="open-settings" type="button">打开代理设置</button>
+      <button id="enable-test-proxy" type="button">启用测试分流</button>
+      <button id="disable-proxy" type="button">关闭扩展代理</button>
+      <p id="proxy-status" role="status">尚未检测代理状态</p>
+      <p class="hint">
+        “开启”应用的是规则分流，并不等于所有网站都走代理。
+        未启用规则包或没有规则命中时，兜底行为是 DIRECT。
+        开启后会持续控制 Chrome 代理，直到点击“关闭扩展代理”。
+        DIRECT 表示 Chrome 不使用配置的 HTTP 代理；无法绕过系统级 VPN、TUN 或透明代理。
+      </p>
+    </main>
+    <script type="module" src="/src/popup/popup.ts"></script>
+  </body>
+</html>

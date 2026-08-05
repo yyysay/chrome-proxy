@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rule Proxy Lab · 设置代理</title>
+  </head>
+
+  <body>
+    <main class="page">
+      <section class="card">
+        <p class="eyebrow">RULE PROXY LAB</p>
+
+        <h1>扩展设置</h1>
+
+        <p class="lead">
+          配置本地 HTTP 代理和需要启用的规则包。
+        </p>
+
+        <nav class="tabs" role="tablist" aria-label="设置分类">
+          <button
+            class="tab active"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            data-tab-target="proxy"
+          >代理</button>
+          <button
+            class="tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-tab-target="rules"
+          >规则包</button>
+          <button
+            class="tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-tab-target="about"
+          >关于</button>
+        </nav>
+
+        <section data-tab-panel="proxy">
+          <h2>本地 HTTP 代理</h2>
+          <p class="section-description">
+            请输入 Surge、Mihomo 或其他代理内核开放的 HTTP 地址。
+          </p>
+
+          <form id="proxy-form">
+          <label>
+            <span>代理地址</span>
+            <input
+              id="proxy-host"
+              name="host"
+              type="text"
+              value="127.0.0.1"
+              autocomplete="off"
+              required
+            />
+          </label>
+
+          <label>
+            <span>端口</span>
+            <input
+              id="proxy-port"
+              name="port"
+              type="number"
+              value="7890"
+              min="1"
+              max="65535"
+              required
+            />
+          </label>
+
+          <button type="submit">保存代理配置</button>
+          </form>
+
+          <p id="status" role="status"></p>
+        </section>
+
+        <section
+          class="rule-packs"
+          aria-labelledby="rule-packs-title"
+          data-tab-panel="rules"
+          hidden
+        >
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">RULE PACKS</p>
+              <h2 id="rule-packs-title">规则包</h2>
+            </div>
+            <span id="rule-pack-count">读取中</span>
+          </div>
+
+          <p class="section-description">
+            开关会自动保存；分流已开启时会立即重新生成 PAC。
+            未启用规则包或没有规则命中时，兜底规则为 DIRECT。
+          </p>
+
+          <label class="fallback-setting" for="fallback-mode">
+            <span>
+              <strong>兜底策略</strong>
+              <small id="fallback-description">
+                未命中规则的网站由 Chrome 直接连接。
+              </small>
+            </span>
+            <select id="fallback-mode">
+              <option value="direct">本地直连</option>
+              <option value="proxy">局域网代理</option>
+              <option value="system">系统代理</option>
+            </select>
+          </label>
+          <p id="fallback-status" role="status"></p>
+
+          <div id="rule-pack-list" class="rule-pack-list"></div>
+          <p id="rule-pack-status" role="status"></p>
+        </section>
+
+        <section data-tab-panel="about" hidden>
+          <h2>关于</h2>
+          <p class="section-description">
+            Rule Proxy Lab · Chrome PAC 规则分流实验版本
+          </p>
+
+          <dl>
+          <div>
+            <dt>扩展版本</dt>
+            <dd id="version">读取中</dd>
+          </div>
+
+          <div>
+            <dt>安装记录</dt>
+            <dd id="installed-at">读取中</dd>
+          </div>
+          </dl>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/src/onboarding/onboarding.ts"></script>
+  </body>
+</html>
