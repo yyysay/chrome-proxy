@@ -1,9 +1,17 @@
 import {
-  BUILTIN_RULE_PACKS,
+  DEFAULT_RULE_PACKS,
   DEFAULT_ENABLED_RULE_PACK_IDS,
 } from "../rule-packs/catalog";
 import { compileRulePacks } from "../rule-packs/compiler";
-import { buildPacScript } from "./pac-builder";
+import {
+  analyzeProviderRules,
+  normalizeProviderRules,
+} from "../rule-packs/provider-parser";
+import type {
+  RulePackDefinition,
+  RulePackSourceState,
+} from "../rule-packs/types";
+import { buildPacScript, ruleMatchesHostname } from "./pac-builder";
 
 const PROXY_CONFIG_KEY = "proxyConfig";
 const PROXY_STATE_KEY = "proxyState";
@@ -11,6 +19,13 @@ const PROXY_EVENT_KEY = "lastProxyEvent";
 const ENABLED_RULE_PACK_IDS_KEY = "enabledRulePackIds";
 const LAST_PROXY_ERROR_KEY = "lastProxyError";
 const FALLBACK_MODE_KEY = "fallbackMode";
+const RULE_PACK_SOURCES_KEY = "rulePackSources";
+const RULE_PACK_DEFINITIONS_KEY = "rulePackDefinitions";
+const RULE_ENGINE_STATUS_KEY = "ruleEngineStatus";
+const MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024;
+const MAX_RULES = 20_000;
+const MAX_PAC_BYTES = 1_500_000;
+const DOWNLOAD_TIMEOUT_MS = 15_000;
 
 export type FallbackMode = "direct" | "proxy" | "system";
 
@@ -46,6 +61,17 @@ export interface ProxyStatus {
     details: string;
     fatal: boolean;
     occurredAt: string;
+  };
+  ruleEngineStatus?: {
+    statistics: {
+      parsed: number;
+      effective: number;
+      duplicates: number;
+      conflicts: number;
+      issues: number;
+    };
+    pacBytes: number;
+    generatedAt: string;
   };
 }
 
@@ -122,34 +148,173 @@ async function loadFallbackMode(): Promise<FallbackMode> {
   return value === "proxy" || value === "system" ? value : "direct";
 }
 
+type RulePackSources = Record<string, RulePackSourceState>;
+
+async function loadRulePackDefinitions() {
+  const stored = await chrome.storage.local.get(RULE_PACK_DEFINITIONS_KEY);
+  const value = stored[RULE_PACK_DEFINITIONS_KEY] as unknown;
+  return Array.isArray(value) ? value as RulePackDefinition[] : [...DEFAULT_RULE_PACKS];
+}
+
+async function saveRulePackDefinitions(definitions: readonly unknown[]): Promise<void> {
+  await chrome.storage.local.set({ [RULE_PACK_DEFINITIONS_KEY]: definitions });
+}
+
+async function loadRulePackSources(): Promise<RulePackSources> {
+  const stored = await chrome.storage.local.get(RULE_PACK_SOURCES_KEY);
+  const value = stored[RULE_PACK_SOURCES_KEY] as unknown;
+  return value && typeof value === "object" ? value as RulePackSources : {};
+}
+
+async function saveRulePackSources(sources: RulePackSources): Promise<void> {
+  await chrome.storage.local.set({ [RULE_PACK_SOURCES_KEY]: sources });
+}
+
+async function refreshRulePackSource(packId: string): Promise<void> {
+  const definitions = await loadRulePackDefinitions();
+  const pack = definitions.find((item) => item.id === packId);
+
+  if (!pack) {
+    throw new Error(`未知规则：${packId}`);
+  }
+
+  const sources = await loadRulePackSources();
+  const current = sources[packId] ?? {};
+  const url = current.url || pack.defaultUrl;
+  const lastAttemptAt = new Date().toISOString();
+
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    throw new Error(`${pack.name} 的订阅地址无效`);
+  }
+
+  if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
+    throw new Error(`${pack.name} 仅支持 HTTP/HTTPS 订阅`);
+  }
+
+  sources[packId] = {
+    ...current,
+    url,
+    lastAttemptAt,
+    status: "downloading",
+    error: undefined,
+  };
+  await saveRulePackSources(sources);
+
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const declaredLength = Number(response.headers.get("content-length"));
+
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_DOWNLOAD_BYTES) {
+      throw new Error("订阅文件超过 2 MB 限制");
+    }
+
+    const content = await response.text();
+
+    if (new TextEncoder().encode(content).byteLength > MAX_DOWNLOAD_BYTES) {
+      throw new Error("订阅文件超过 2 MB 限制");
+    }
+
+    sources[packId] = {
+      ...current,
+      url,
+      cachedContent: content,
+      updatedAt: new Date().toISOString(),
+      lastAttemptAt,
+      status: "ready",
+      error: undefined,
+    };
+    await saveRulePackSources(sources);
+  } catch (error) {
+    sources[packId] = {
+      ...current,
+      url,
+      lastAttemptAt,
+      status: current.customContent || current.cachedContent ? "cached" : "error",
+      error: error instanceof Error ? error.message : "下载失败",
+    };
+    await saveRulePackSources(sources);
+
+    if (!current.customContent && !current.cachedContent) {
+      throw new Error(`${pack.name} 规则下载失败：${sources[packId].error}`);
+    }
+  }
+}
+
+async function loadRuntimeCatalog() {
+  const [sources, definitions] = await Promise.all([
+    loadRulePackSources(),
+    loadRulePackDefinitions(),
+  ]);
+
+  return definitions.map((pack) => {
+    const state = sources[pack.id];
+    const content = state?.customContent || state?.cachedContent || pack.rulesText || "";
+
+    return {
+      ...pack,
+      rulesText: normalizeProviderRules(content, pack.defaultAction),
+    };
+  });
+}
+
 async function createPacConfig(
   config: ProxyConfig,
-): Promise<chrome.proxy.ProxyConfig> {
+): Promise<{
+  config: chrome.proxy.ProxyConfig;
+  report: {
+    statistics: ReturnType<typeof compileRulePacks>["statistics"];
+    conflicts: ReturnType<typeof compileRulePacks>["conflicts"];
+    pacBytes: number;
+    generatedAt: string;
+  };
+}> {
   const [enabledPackIds, fallbackMode] = await Promise.all([
     loadEnabledRulePackIds(),
     loadFallbackMode(),
   ]);
-  const compiled = compileRulePacks(
-    BUILTIN_RULE_PACKS,
-    enabledPackIds,
+  const compiled = compileRulePacks(await loadRuntimeCatalog(), enabledPackIds);
+
+  if (compiled.rules.length > MAX_RULES) {
+    throw new Error(`有效规则数量 ${compiled.rules.length} 超过 ${MAX_RULES} 条限制`);
+  }
+
+  const pac = buildPacScript(
+    compiled.rules,
+    config,
     fallbackMode === "proxy" ? "PROXY" : "DIRECT",
   );
 
-  if (compiled.issues.length > 0) {
-    console.warn("规则包解析警告：", compiled.issues);
-  }
+  const pacBytes = new TextEncoder().encode(pac.script).byteLength;
 
-  const pac = buildPacScript(compiled.rules, config);
-
-  if (pac.warnings.length > 0) {
-    console.warn("PAC 编译警告：", pac.warnings);
+  if (pacBytes > MAX_PAC_BYTES) {
+    throw new Error(`PAC 大小 ${pacBytes} 字节超过 ${MAX_PAC_BYTES} 字节限制`);
   }
 
   return {
-    mode: "pac_script",
-    pacScript: {
-      data: pac.script,
-      mandatory: true,
+    config: {
+      mode: "pac_script",
+      pacScript: {
+        data: pac.script,
+        mandatory: true,
+      },
+    },
+    report: {
+      statistics: compiled.statistics,
+      conflicts: compiled.conflicts,
+      pacBytes,
+      generatedAt: new Date().toISOString(),
     },
   };
 }
@@ -177,26 +342,47 @@ function assertControllable(levelOfControl: string): void {
 }
 
 async function applyPac(config: ProxyConfig): Promise<void> {
-  const before = await readEffectiveSetting();
+  const previous = await chrome.proxy.settings.get({ incognito: false });
+  const before = {
+    mode: (previous.value as chrome.proxy.ProxyConfig | undefined)?.mode,
+    levelOfControl: previous.levelOfControl,
+  };
   assertControllable(before.levelOfControl);
+  const generated = await createPacConfig(config);
 
-  await chrome.proxy.settings.set({
-    value: await createPacConfig(config),
-    scope: "regular",
-  });
+  try {
+    await chrome.proxy.settings.set({
+      value: generated.config,
+      scope: "regular",
+    });
 
-  const after = await readEffectiveSetting();
+    const after = await readEffectiveSetting();
 
-  if (
-    after.mode !== "pac_script" ||
-    after.levelOfControl !== "controlled_by_this_extension"
-  ) {
-    throw new Error(
-      `PAC 写入后未生效：${after.mode ?? "unknown"} / ${after.levelOfControl}`,
-    );
+    if (
+      after.mode !== "pac_script" ||
+      after.levelOfControl !== "controlled_by_this_extension"
+    ) {
+      throw new Error(
+        `PAC 写入后未生效：${after.mode ?? "unknown"} / ${after.levelOfControl}`,
+      );
+    }
+
+    await chrome.storage.local.set({
+      [RULE_ENGINE_STATUS_KEY]: generated.report,
+    });
+    await chrome.storage.local.remove(LAST_PROXY_ERROR_KEY);
+  } catch (error) {
+    if (previous.levelOfControl === "controlled_by_this_extension") {
+      await chrome.proxy.settings.set({
+        value: previous.value as chrome.proxy.ProxyConfig,
+        scope: "regular",
+      });
+    } else {
+      await chrome.proxy.settings.clear({ scope: "regular" });
+    }
+
+    throw error;
   }
-
-  await chrome.storage.local.remove(LAST_PROXY_ERROR_KEY);
 }
 
 async function applySelectedMode(): Promise<void> {
@@ -239,6 +425,7 @@ export async function disableProxy(): Promise<void> {
   // onChange 监听器会看到 clear 事件；先关闭期望状态，避免误恢复。
   await setDesiredEnabled(false);
   await chrome.proxy.settings.clear({ scope: "regular" });
+  await chrome.storage.local.remove(LAST_PROXY_ERROR_KEY);
   await recordProxyEvent({ type: "disabled", reason: "user" });
 }
 
@@ -298,14 +485,33 @@ export async function updateEnabledRulePacks(
   enabledPackIds: string[];
   pacReapplied: boolean;
 }> {
-  const knownIds = new Set(BUILTIN_RULE_PACKS.map((pack) => pack.id));
+  const definitions = await loadRulePackDefinitions();
+  const knownIds = new Set(definitions.map((pack) => pack.id));
   const enabledPackIds = requestedIds.filter((id) => knownIds.has(id));
+
+  const [previousEnabledIds, sources] = await Promise.all([
+    loadEnabledRulePackIds(),
+    loadRulePackSources(),
+  ]);
+  const remoteIds = enabledPackIds.filter(
+    (id) => !sources[id]?.customContent && !sources[id]?.cachedContent,
+  );
+  await Promise.all(remoteIds.map(refreshRulePackSource));
 
   await chrome.storage.local.set({
     [ENABLED_RULE_PACK_IDS_KEY]: enabledPackIds,
   });
 
-  const pacReapplied = await reconcileProxy("rulePacks.updated", true);
+  let pacReapplied: boolean;
+
+  try {
+    pacReapplied = await reconcileProxy("rulePacks.updated", true);
+  } catch (error) {
+    await chrome.storage.local.set({
+      [ENABLED_RULE_PACK_IDS_KEY]: previousEnabledIds,
+    });
+    throw error;
+  }
 
   return {
     enabledPackIds,
@@ -313,14 +519,268 @@ export async function updateEnabledRulePacks(
   };
 }
 
+export async function getRulePackSettings() {
+  const [sources, enabledIds, definitions] = await Promise.all([
+    loadRulePackSources(),
+    loadEnabledRulePackIds(),
+    loadRulePackDefinitions(),
+  ]);
+
+  return definitions.map((pack) => {
+    const source = sources[pack.id] ?? {};
+    const content = source.customContent || source.cachedContent || pack.rulesText || "";
+    const analyzed = analyzeProviderRules(content, pack.defaultAction);
+    const runtimePack = {
+      ...pack,
+      rulesText: analyzed.rulesText,
+    };
+    const validation = compileRulePacks([runtimePack], [pack.id]).statistics;
+
+    return {
+      ...pack,
+      enabled: enabledIds.includes(pack.id),
+      source,
+      validation: {
+        effective: validation.effective,
+        ignored: analyzed.ignored + validation.issues,
+      },
+    };
+  });
+}
+
+export async function testRuleMatch(input: string): Promise<{
+  hostname: string;
+  action: "DIRECT" | "PROXY" | "SYSTEM";
+  matched: boolean;
+  rule?: { type: string; value: string };
+}> {
+  const trimmed = input.trim();
+
+  if (!trimmed) {
+    throw new Error("请输入网址或域名");
+  }
+
+  let hostname: string;
+
+  try {
+    hostname = new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`).hostname
+      .toLowerCase();
+  } catch {
+    throw new Error("网址或域名格式无效");
+  }
+
+  if (!hostname) {
+    throw new Error("网址或域名格式无效");
+  }
+
+  const [enabledIds, fallbackMode] = await Promise.all([
+    loadEnabledRulePackIds(),
+    loadFallbackMode(),
+  ]);
+  const compiled = compileRulePacks(await loadRuntimeCatalog(), enabledIds);
+  const matchedRule = compiled.rules.find((rule) => ruleMatchesHostname(rule, hostname));
+
+  if (matchedRule) {
+    return {
+      hostname,
+      action: matchedRule.action === "DIRECT" ? "DIRECT" : "PROXY",
+      matched: true,
+      rule: { type: matchedRule.type, value: matchedRule.value },
+    };
+  }
+
+  return {
+    hostname,
+    action: fallbackMode === "system"
+      ? "SYSTEM"
+      : fallbackMode === "proxy" ? "PROXY" : "DIRECT",
+    matched: false,
+  };
+}
+
+export async function saveRulePack(
+  packId: string | undefined,
+  name: string,
+  url: string,
+  action: "DIRECT" | "PROXY",
+  customContent: string,
+): Promise<string> {
+  if (!name.trim()) {
+    throw new Error("规则名称不能为空");
+  }
+
+  const [definitions, previousSources] = await Promise.all([
+    loadRulePackDefinitions(),
+    loadRulePackSources(),
+  ]);
+  const previousDefinitions = definitions.map((item) => ({ ...item }));
+  const id = packId || crypto.randomUUID();
+  const existingIndex = definitions.findIndex((item) => item.id === id);
+  const definition = {
+    id,
+    name: name.trim(),
+    description: "自定义远程规则",
+    enabledByDefault: false,
+    defaultUrl: url.trim(),
+    defaultAction: action,
+  } as const;
+
+  if (existingIndex >= 0) {
+    definitions[existingIndex] = definition;
+  } else {
+    definitions.push(definition);
+  }
+  await saveRulePackDefinitions(definitions);
+
+  const sources = { ...previousSources };
+  sources[id] = {
+    ...sources[id],
+    url: url.trim(),
+    customContent: customContent.trim() || undefined,
+    error: undefined,
+  };
+  await saveRulePackSources(sources);
+
+  try {
+    if (!customContent.trim()) {
+      await refreshRulePackSource(id);
+    }
+
+    await reconcileProxy("rulePackSource.updated", true);
+  } catch (error) {
+    await Promise.all([
+      saveRulePackDefinitions(previousDefinitions),
+      saveRulePackSources(previousSources),
+    ]);
+    throw error;
+  }
+  return id;
+}
+
+export async function reorderRulePacks(orderedIds: readonly string[]): Promise<void> {
+  const definitions = await loadRulePackDefinitions();
+  const byId = new Map(definitions.map((pack) => [pack.id, pack]));
+  const ordered = orderedIds
+    .map((id) => byId.get(id))
+    .filter((pack): pack is RulePackDefinition => Boolean(pack));
+  const included = new Set(ordered.map((pack) => pack.id));
+  ordered.push(...definitions.filter((pack) => !included.has(pack.id)));
+  await saveRulePackDefinitions(ordered);
+  try {
+    await reconcileProxy("rulePacks.reordered", true);
+  } catch (error) {
+    await saveRulePackDefinitions(definitions);
+    throw error;
+  }
+}
+
+export async function refreshEnabledRulePacks(): Promise<{
+  refreshed: number;
+  cached: number;
+  skipped: number;
+}> {
+  const enabledIds = await loadEnabledRulePackIds();
+  let refreshed = 0;
+  let cached = 0;
+  let skipped = 0;
+
+  for (const id of enabledIds) {
+    const before = (await loadRulePackSources())[id];
+
+    if (before?.customContent) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      await refreshRulePackSource(id);
+      const state = (await loadRulePackSources())[id];
+      if (state?.status === "cached") {
+        cached += 1;
+      } else {
+        refreshed += 1;
+      }
+    } catch {
+      cached += 1;
+    }
+  }
+
+  await reconcileProxy("rulePacks.scheduledRefresh", true);
+  return { refreshed, cached, skipped };
+}
+
+export async function migrateStoredData(): Promise<void> {
+  const [definitions, enabledIds, sources, stored] = await Promise.all([
+    loadRulePackDefinitions(),
+    loadEnabledRulePackIds(),
+    loadRulePackSources(),
+    chrome.storage.local.get("schemaVersion"),
+  ]);
+
+  if (stored.schemaVersion === 1) {
+    return;
+  }
+
+  const knownIds = new Set(definitions.map((pack) => pack.id));
+  await chrome.storage.local.set({
+    schemaVersion: 1,
+    [ENABLED_RULE_PACK_IDS_KEY]: enabledIds.filter((id) => knownIds.has(id)),
+    [RULE_PACK_SOURCES_KEY]: Object.fromEntries(
+      Object.entries(sources).filter(([id]) => knownIds.has(id)),
+    ),
+  });
+}
+
+export async function refreshRulePack(packId: string): Promise<void> {
+  await refreshRulePackSource(packId);
+  await reconcileProxy("rulePackSource.refreshed", true);
+}
+
+export async function deleteRulePack(packId: string): Promise<void> {
+  const [definitions, sources, enabledIds] = await Promise.all([
+    loadRulePackDefinitions(),
+    loadRulePackSources(),
+    loadEnabledRulePackIds(),
+  ]);
+  try {
+    await Promise.all([
+      saveRulePackDefinitions(definitions.filter((pack) => pack.id !== packId)),
+      saveRulePackSources(Object.fromEntries(
+        Object.entries(sources).filter(([id]) => id !== packId),
+      )),
+      chrome.storage.local.set({
+        [ENABLED_RULE_PACK_IDS_KEY]: enabledIds.filter((id) => id !== packId),
+      }),
+    ]);
+    await reconcileProxy("rulePack.deleted", true);
+  } catch (error) {
+    await Promise.all([
+      saveRulePackDefinitions(definitions),
+      saveRulePackSources(sources),
+      chrome.storage.local.set({ [ENABLED_RULE_PACK_IDS_KEY]: enabledIds }),
+    ]);
+    throw error;
+  }
+}
+
 export async function updateFallbackMode(
   fallbackMode: FallbackMode,
 ): Promise<{ fallbackMode: FallbackMode; reapplied: boolean }> {
+  const previousFallbackMode = await loadFallbackMode();
   await chrome.storage.local.set({
     [FALLBACK_MODE_KEY]: fallbackMode,
   });
 
-  const reapplied = await reconcileProxy("fallbackMode.updated", true);
+  let reapplied: boolean;
+
+  try {
+    reapplied = await reconcileProxy("fallbackMode.updated", true);
+  } catch (error) {
+    await chrome.storage.local.set({
+      [FALLBACK_MODE_KEY]: previousFallbackMode,
+    });
+    throw error;
+  }
   return { fallbackMode, reapplied };
 }
 
@@ -371,6 +831,7 @@ export async function getProxyStatus(): Promise<ProxyStatus> {
     chrome.storage.local.get([
       PROXY_EVENT_KEY,
       LAST_PROXY_ERROR_KEY,
+      RULE_ENGINE_STATUS_KEY,
     ]),
     chrome.storage.local.get(PROXY_CONFIG_KEY),
     loadFallbackMode(),
@@ -399,6 +860,9 @@ export async function getProxyStatus(): Promise<ProxyStatus> {
           fatal: boolean;
           occurredAt: string;
         }
+      | undefined,
+    ruleEngineStatus: stored[RULE_ENGINE_STATUS_KEY] as
+      | ProxyStatus["ruleEngineStatus"]
       | undefined,
   };
 }

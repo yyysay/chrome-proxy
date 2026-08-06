@@ -10,8 +10,6 @@ const SUPPORTED_TYPES = new Set([
   "DOMAIN",
   "DOMAIN-SUFFIX",
   "DOMAIN-KEYWORD",
-  "MATCH",
-  "FINAL",
 ]);
 
 function normalizeLine(rawLine: string): string {
@@ -157,17 +155,6 @@ export function parseRules(text: string): ParseResult {
           `暂不支持的规则类型：${rawType || "空"}`,
         ),
       );
-
-      return;
-    }
-
-    if (rawType === "MATCH" || rawType === "FINAL") {
-      rules.push({
-        type: "MATCH",
-        action: normalizeAction(parts[1]),
-        lineNumber,
-        source: rawLine,
-      });
 
       return;
     }

@@ -7,21 +7,30 @@
   </head>
   <body>
     <main class="panel">
-      <div class="status-dot" aria-hidden="true"></div>
-      <p class="eyebrow">MANIFEST V3</p>
-      <h1>开发环境测试</h1>
-      <p id="status" class="status">正在读取分流状态</p>
-      <button id="check-proxy" type="button">检测局域网代理</button>
-      <button id="open-settings" type="button">打开代理设置</button>
-      <button id="enable-test-proxy" type="button">启用测试分流</button>
-      <button id="disable-proxy" type="button">关闭扩展代理</button>
-      <p id="proxy-status" role="status">尚未检测代理状态</p>
-      <p class="hint">
-        “开启”应用的是规则分流，并不等于所有网站都走代理。
-        未启用规则包或没有规则命中时，兜底行为是 DIRECT。
-        开启后会持续控制 Chrome 代理，直到点击“关闭扩展代理”。
-        DIRECT 表示 Chrome 不使用配置的 HTTP 代理；无法绕过系统级 VPN、TUN 或透明代理。
-      </p>
+      <header class="header">
+        <span class="logo" aria-hidden="true">R</span>
+        <strong>规则分流</strong>
+        <button id="open-settings" class="icon-button" type="button" title="打开设置">设置</button>
+      </header>
+
+      <section class="state-card">
+        <div id="status-dot" class="status-dot" aria-hidden="true"></div>
+        <div>
+          <h1 id="state-title">正在读取…</h1>
+          <p id="status">请稍候</p>
+        </div>
+      </section>
+
+      <button id="proxy-toggle" class="primary-button" type="button">开启分流</button>
+
+      <dl class="summary">
+        <div><dt>代理地址</dt><dd id="proxy-endpoint">未配置</dd></div>
+        <div><dt>未命中规则</dt><dd id="fallback-label">本地直连</dd></div>
+        <div><dt>已加载规则</dt><dd id="rule-count">0 条</dd></div>
+      </dl>
+
+      <button id="check-proxy" class="secondary-button" type="button">检查代理连接</button>
+      <p id="proxy-status" class="feedback" role="status"></p>
     </main>
     <script type="module" src="/src/popup/popup.ts"></script>
   </body>

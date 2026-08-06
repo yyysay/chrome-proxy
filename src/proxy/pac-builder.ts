@@ -13,6 +13,19 @@ export interface PacBuildResult {
   warnings: string[];
 }
 
+export function ruleMatchesHostname(rule: ParsedRule, hostname: string): boolean {
+  const host = hostname.toLowerCase();
+
+  switch (rule.type) {
+    case "DOMAIN":
+      return host === rule.value;
+    case "DOMAIN-SUFFIX":
+      return host === rule.value || host.endsWith(`.${rule.value}`);
+    case "DOMAIN-KEYWORD":
+      return host.includes(rule.value);
+  }
+}
+
 function getPacResult(
   action: RuleAction,
   proxy: PacProxyConfig,
@@ -33,6 +46,7 @@ function getPacResult(
 export function buildPacScript(
   rules: ParsedRule[],
   proxy: PacProxyConfig,
+  fallbackAction: "DIRECT" | "PROXY",
 ): PacBuildResult {
   const warnings: string[] = [];
 
@@ -40,8 +54,6 @@ export function buildPacScript(
     "function FindProxyForURL(url, host) {",
     "  host = host.toLowerCase();",
   ];
-
-  let hasFinalRule = false;
 
   for (const rule of rules) {
     const result = getPacResult(rule.action, proxy);
@@ -88,21 +100,11 @@ export function buildPacScript(
         break;
       }
 
-      case "MATCH": {
-        lines.push(`  return ${serializedResult};`);
-        hasFinalRule = true;
-        break;
-      }
-    }
-
-    if (hasFinalRule) {
-      break;
     }
   }
 
-  if (!hasFinalRule) {
-    lines.push('  return "DIRECT";');
-  }
+  const fallbackResult = getPacResult(fallbackAction, proxy);
+  lines.push(`  return ${JSON.stringify(fallbackResult)};`);
 
   lines.push("}");
 

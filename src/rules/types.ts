@@ -1,8 +1,7 @@
 export type RuleType =
   | "DOMAIN"
   | "DOMAIN-SUFFIX"
-  | "DOMAIN-KEYWORD"
-  | "MATCH";
+  | "DOMAIN-KEYWORD";
 
 export type RuleAction =
   | "PROXY"
@@ -11,7 +10,7 @@ export type RuleAction =
 
 export interface ParsedRule {
   type: RuleType;
-  value?: string;
+  value: string;
   action: RuleAction;
   lineNumber: number;
   source: string;

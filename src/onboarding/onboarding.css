@@ -185,16 +185,197 @@ h2 {
   gap: 10px;
 }
 
+.rule-pack-card {
+  overflow: hidden;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  background: #fafaf9;
+}
+
+.rule-match-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.rule-match-form button {
+  width: auto;
+}
+
+.rule-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rule-heading-actions button {
+  width: auto;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 16px;
+  border-radius: 11px;
+  padding: 4px;
+  background: #e7e5e4;
+}
+
+.mode-switch button {
+  color: #57534e;
+  background: transparent;
+}
+
+.mode-switch button.active {
+  color: #1c1917;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+}
+
+.preset-rules {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.preset-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  padding: 15px 16px;
+  background: #fafaf9;
+}
+
+.preset-card span {
+  display: grid;
+  gap: 4px;
+}
+
+.preset-card small {
+  color: #78716c;
+}
+
+.preset-card input {
+  width: 20px;
+  height: 20px;
+  accent-color: #1c1917;
+}
+
+[data-ui-current="expert"] .preset-rules {
+  display: none;
+}
+
+[data-ui-current="simple"] .expert-only,
+[data-ui-current="simple"] .rule-heading-actions {
+  display: none;
+}
+
+.diagnostic-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.diagnostic-heading h3 {
+  margin: 0;
+}
+
+.diagnostic-heading button {
+  width: auto;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.diagnostic-list {
+  display: grid;
+  gap: 8px;
+}
+
+.diagnostic-list article {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fafaf9;
+}
+
+.diagnostic-list time,
+.diagnostic-list small {
+  color: #78716c;
+  overflow-wrap: anywhere;
+}
+
+.rule-pack-card[draggable="true"] {
+  cursor: grab;
+}
+
+.rule-pack-card.dragging {
+  opacity: 0.45;
+}
+
 .rule-pack-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  border: 1px solid #e7e5e4;
-  border-radius: 12px;
+  border: 0;
+  border-radius: 0;
   padding: 15px 16px;
   background: #fafaf9;
   cursor: pointer;
+}
+
+.rule-pack-card details {
+  border-top: 1px solid #e7e5e4;
+  padding: 12px 16px 16px;
+}
+
+.rule-pack-card summary {
+  margin-bottom: 12px;
+  color: #57534e;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.rule-pack-card textarea {
+  width: 100%;
+  min-height: 150px;
+  margin-top: 10px;
+  border: 1px solid #d6d3d1;
+  border-radius: 9px;
+  padding: 11px 12px;
+  resize: vertical;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.rule-pack-card details > small {
+  display: block;
+  margin-top: 8px;
+  color: #78716c;
+}
+
+.rule-pack-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.rule-pack-actions button {
+  width: auto;
+  padding: 9px 12px;
+  font-size: 13px;
 }
 
 .rule-pack-copy {
@@ -207,11 +388,31 @@ h2 {
   line-height: 1.45;
 }
 
-.rule-pack-item input {
+.rule-drag-handle {
+  color: #a8a29e;
+  cursor: grab;
+  font-size: 22px;
+  line-height: 1;
+  user-select: none;
+}
+
+.rule-pack-item > input {
   width: 20px;
   height: 20px;
   margin: 0;
   accent-color: #1c1917;
+}
+
+.rule-name-input {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.rule-name-input:focus {
+  outline: none;
 }
 
 dl {

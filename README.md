@@ -1,6 +1,6 @@
 # Rule Proxy Lab · 最小环境测试
 
-这是第一阶段的最小 Chrome Manifest V3 项目，用于验证：
+这是一个基于 Chrome Manifest V3 和 PAC 的规则分流扩展。
 
 - TypeScript 编译
 - Vite 多入口构建
@@ -9,7 +9,7 @@
 - Popup 与 Service Worker 消息通信
 - `chrome.storage.local` 读写
 
-当前版本可保存本地 HTTP 代理配置，并通过测试规则生成 PAC 分流。
+当前版本支持自定义规则订阅、规则优先级、三种兜底策略和局域网 HTTP 代理连通性检查。
 
 ## 1. 环境要求
 
@@ -36,23 +36,19 @@ pnpm -v
 npm install -g pnpm
 ```
 
-## 2. 立即加载预构建版本
-
-压缩包已经包含一个预构建的 `dist`，可以先跳过依赖安装，直接按第 4 节加载测试。
-
-## 3. 安装依赖并自行构建
+## 2. 安装依赖并开始开发
 
 ```powershell
-cd rule-proxy-lab
+cd chrome-proxy
 pnpm install
 pnpm typecheck
 pnpm test
-pnpm build
+pnpm dev
 ```
 
-构建完成后会生成 `dist` 目录。
+Vite 会持续更新 `dist` 目录。
 
-## 4. 加载到 Chrome
+## 3. 加载到 Chrome
 
 1. 打开 `chrome://extensions/`
 2. 开启右上角“开发者模式”
@@ -60,10 +56,9 @@ pnpm build
 4. 选择项目中的 `dist` 目录
 5. 首次安装后应自动打开 onboarding 页面
 6. 点击浏览器工具栏中的扩展图标
-7. 点击“检测后台通信”
-8. 页面显示“Service Worker 通信正常”即测试通过
+7. 修改代码后，在扩展卡片上点击“重新加载”
 
-## 5. 开发监听
+## 4. 开发监听
 
 ```powershell
 pnpm dev
@@ -76,6 +71,6 @@ Vite 会在文件变化后重新构建 `dist`。修改代码后，仍需回到 `
 - `DOMAIN`
 - `DOMAIN-SUFFIX`
 - `DOMAIN-KEYWORD`
-- `FINAL` / `MATCH`
+规则保持原始顺序写入 PAC，首条命中后立即返回。兜底行为不属于规则文本，统一由设置页的“兜底策略”决定：本地直连、局域网代理或系统代理。
 
-规则保持原始顺序写入 PAC，首条命中后立即返回。没有 `FINAL` 或 `MATCH` 时默认直连。
+多个规则按设置页中从上到下的顺序匹配。重复规则会合并；动作冲突时保留较早出现的规则。启用的远程规则每日自动更新，下载失败时继续使用已有缓存。

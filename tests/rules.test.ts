@@ -1,20 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildPacScript } from "../src/proxy/pac-builder.ts";
+import { buildPacScript, ruleMatchesHostname } from "../src/proxy/pac-builder.ts";
 import {
-  BUILTIN_RULE_PACKS,
+  DEFAULT_RULE_PACKS,
   DEFAULT_ENABLED_RULE_PACK_IDS,
 } from "../src/rule-packs/catalog.ts";
 import { compileRulePacks } from "../src/rule-packs/compiler.ts";
+import {
+  analyzeProviderRules,
+  normalizeProviderRules,
+} from "../src/rule-packs/provider-parser.ts";
 import { parseRules } from "../src/rules/parser.ts";
 
 test("parses Surge and Mihomo rules while preserving order", () => {
   const input = `\uFEFF[Rule]
 DOMAIN,Example.com,DIRECT
 - 'DOMAIN-SUFFIX,.Google.com,Proxy Group'
-- "DOMAIN-KEYWORD,openai,REJECT-DROP"
-FINAL,DIRECT`;
+- "DOMAIN-KEYWORD,openai,REJECT-DROP"`;
 
   const result = parseRules(input);
 
@@ -25,7 +28,6 @@ FINAL,DIRECT`;
       { type: "DOMAIN", value: "example.com", action: "DIRECT" },
       { type: "DOMAIN-SUFFIX", value: "google.com", action: "PROXY" },
       { type: "DOMAIN-KEYWORD", value: "openai", action: "REJECT" },
-      { type: "MATCH", value: undefined, action: "DIRECT" },
     ],
   );
 });
@@ -33,7 +35,9 @@ FINAL,DIRECT`;
 test("reports unsupported, missing, and invalid rules", () => {
   const result = parseRules(`IP-CIDR,1.1.1.0/24,PROXY
 DOMAIN,,DIRECT
-DOMAIN-SUFFIX,https://example.com,PROXY`);
+DOMAIN-SUFFIX,https://example.com,PROXY
+MATCH,DIRECT
+FINAL,PROXY`);
 
   assert.equal(result.rules.length, 0);
   assert.deepEqual(
@@ -42,27 +46,28 @@ DOMAIN-SUFFIX,https://example.com,PROXY`);
       { lineNumber: 1, message: "暂不支持的规则类型：IP-CIDR" },
       { lineNumber: 2, message: "规则缺少匹配内容" },
       { lineNumber: 3, message: "无效的匹配内容：https://example.com" },
+      { lineNumber: 4, message: "暂不支持的规则类型：MATCH" },
+      { lineNumber: 5, message: "暂不支持的规则类型：FINAL" },
     ],
   );
 });
 
-test("builds an ordered PAC and stops after MATCH", () => {
+test("builds an ordered PAC and appends the selected fallback", () => {
   const parsed = parseRules(`DOMAIN,www.google.org,DIRECT
 DOMAIN-SUFFIX,google.org,PROXY
-MATCH,DIRECT
-DOMAIN,ignored.example,PROXY`);
+DOMAIN,after.example,PROXY`);
   const result = buildPacScript(parsed.rules, {
     host: "127.0.0.1",
     port: 7890,
-  });
+  }, "DIRECT");
 
   const exactIndex = result.script.indexOf('host === "www.google.org"');
   const suffixIndex = result.script.indexOf('host === "google.org"');
 
   assert.ok(exactIndex >= 0);
   assert.ok(suffixIndex > exactIndex);
+  assert.match(result.script, /after\.example/);
   assert.match(result.script, /return "DIRECT";/);
-  assert.doesNotMatch(result.script, /ignored\.example/);
 });
 
 test("falls back to DIRECT and warns when REJECT cannot be represented", () => {
@@ -70,15 +75,15 @@ test("falls back to DIRECT and warns when REJECT cannot be represented", () => {
   const result = buildPacScript(parsed.rules, {
     host: "127.0.0.1",
     port: 7890,
-  });
+  }, "DIRECT");
 
   assert.equal(result.warnings.length, 1);
   assert.match(result.script, /return "DIRECT";/);
 });
 
-test("default rule packs are empty and fall back to direct", () => {
+test("default rule packs are empty", () => {
   const compiled = compileRulePacks(
-    BUILTIN_RULE_PACKS,
+    DEFAULT_RULE_PACKS,
     DEFAULT_ENABLED_RULE_PACK_IDS,
   );
 
@@ -88,62 +93,118 @@ test("default rule packs are empty and fall back to direct", () => {
       value,
       action,
     })),
-    [
-      { type: "MATCH", value: undefined, action: "DIRECT" },
-    ],
+    [],
   );
 });
 
 test("disabled rule packs are excluded without changing catalog order", () => {
+  const catalog = [
+    {
+      id: "google",
+      name: "Google",
+      description: "test",
+      enabledByDefault: false,
+      defaultUrl: "https://example.com/google.yaml",
+      defaultAction: "PROXY" as const,
+      rulesText: "DOMAIN-SUFFIX,google.com,PROXY",
+    },
+    {
+      id: "pinterest",
+      name: "Pinterest",
+      description: "test",
+      enabledByDefault: false,
+      defaultUrl: "https://example.com/pinterest.yaml",
+      defaultAction: "PROXY" as const,
+      rulesText: "DOMAIN-SUFFIX,pinterest.com,PROXY",
+    },
+  ];
   const compiled = compileRulePacks(
-    BUILTIN_RULE_PACKS,
-    ["ip125-proxy-test"],
+    catalog,
+    ["pinterest"],
   );
 
-  assert.deepEqual(compiled.enabledPackIds, ["ip125-proxy-test"]);
+  assert.deepEqual(compiled.enabledPackIds, ["pinterest"]);
   assert.deepEqual(
     compiled.rules.map(({ value, action }) => ({ value, action })),
     [
-      { value: "ip125.com", action: "PROXY" },
-      { value: undefined, action: "DIRECT" },
+      { value: "pinterest.com", action: "PROXY" },
     ],
   );
 });
 
-test("global diagnostic pack ends PAC rules with proxy", () => {
-  const compiled = compileRulePacks(
-    BUILTIN_RULE_PACKS,
-    ["google-direct-test", "global-proxy-diagnostic"],
-  );
+test("normalizes domain-provider YAML and ignores typed Clash payload", () => {
+  const content = `payload:
+  - +.google.com
+  - accounts.google.com
+  - DOMAIN-SUFFIX,pinterest.com
+  - DOMAIN,pinimg.com`;
 
-  assert.deepEqual(
-    compiled.rules.map(({ value, action }) => ({ value, action })),
+  assert.equal(
+    normalizeProviderRules(content, "PROXY"),
     [
-      { value: "google.com", action: "DIRECT" },
-      { value: undefined, action: "PROXY" },
-      { value: undefined, action: "DIRECT" },
-    ],
+      "DOMAIN-SUFFIX,google.com,PROXY",
+      "DOMAIN,accounts.google.com,PROXY",
+    ].join("\n"),
   );
-
-  const pac = buildPacScript(compiled.rules, {
-    host: "10.0.1.1",
-    port: 6152,
-  });
-
-  assert.match(pac.script, /return "PROXY 10\.0\.1\.1:6152";/);
-  assert.doesNotMatch(
-    pac.script.slice(pac.script.indexOf('return "PROXY 10.0.1.1:6152";')),
-    /return "DIRECT";/,
-  );
+  assert.equal(analyzeProviderRules(content, "PROXY").ignored, 2);
 });
 
 test("proxy fallback sends unmatched websites to configured proxy", () => {
-  const compiled = compileRulePacks(BUILTIN_RULE_PACKS, [], "PROXY");
+  const compiled = compileRulePacks(DEFAULT_RULE_PACKS, []);
   const pac = buildPacScript(compiled.rules, {
     host: "10.0.1.2",
     port: 6152,
-  });
+  }, "PROXY");
 
   assert.match(pac.script, /return "PROXY 10\.0\.1\.2:6152";/);
   assert.doesNotMatch(pac.script, /return "DIRECT";/);
+});
+
+test("deduplicates rules and keeps the first conflicting action", () => {
+  const catalog = [
+    {
+      id: "first",
+      name: "First",
+      description: "test",
+      enabledByDefault: false,
+      defaultUrl: "",
+      defaultAction: "PROXY" as const,
+      rulesText: `DOMAIN-SUFFIX,example.com,PROXY
+DOMAIN,api.example.com,DIRECT`,
+    },
+    {
+      id: "second",
+      name: "Second",
+      description: "test",
+      enabledByDefault: false,
+      defaultUrl: "",
+      defaultAction: "DIRECT" as const,
+      rulesText: `DOMAIN-SUFFIX,example.com,PROXY
+DOMAIN,api.example.com,PROXY`,
+    },
+  ];
+  const compiled = compileRulePacks(catalog, ["first", "second"]);
+
+  assert.equal(compiled.rules.length, 2);
+  assert.equal(compiled.statistics.parsed, 4);
+  assert.equal(compiled.statistics.duplicates, 1);
+  assert.equal(compiled.statistics.conflicts, 1);
+  assert.deepEqual(compiled.conflicts[0], {
+    key: "DOMAIN:api.example.com",
+    keptAction: "DIRECT",
+    ignoredAction: "PROXY",
+    keptPackId: "first",
+    ignoredPackId: "second",
+  });
+});
+
+test("uses the same exact, suffix, and keyword semantics for diagnostics", () => {
+  const rules = parseRules(`DOMAIN,api.example.com,DIRECT
+DOMAIN-SUFFIX,google.com,PROXY
+DOMAIN-KEYWORD,pinterest,PROXY`).rules;
+
+  assert.equal(ruleMatchesHostname(rules[0], "api.example.com"), true);
+  assert.equal(ruleMatchesHostname(rules[0], "www.api.example.com"), false);
+  assert.equal(ruleMatchesHostname(rules[1], "mail.google.com"), true);
+  assert.equal(ruleMatchesHostname(rules[2], "www.pinterest.de"), true);
 });

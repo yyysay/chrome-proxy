@@ -15,6 +15,18 @@ const statusElement =
   requiredElement<HTMLParagraphElement>("#status");
 const checkProxyButton =
   requiredElement<HTMLButtonElement>("#check-proxy");
+const proxyToggleButton =
+  requiredElement<HTMLButtonElement>("#proxy-toggle");
+const stateTitleElement =
+  requiredElement<HTMLElement>("#state-title");
+const statusDotElement =
+  requiredElement<HTMLElement>("#status-dot");
+const proxyEndpointElement =
+  requiredElement<HTMLElement>("#proxy-endpoint");
+const fallbackLabelElement =
+  requiredElement<HTMLElement>("#fallback-label");
+const ruleCountElement =
+  requiredElement<HTMLElement>("#rule-count");
 
 
 const settingsButton =
@@ -52,18 +64,24 @@ interface RuntimeResponse {
       fatal: boolean;
       occurredAt: string;
     };
+    ruleEngineStatus?: {
+      statistics: {
+        parsed: number;
+        effective: number;
+        duplicates: number;
+        conflicts: number;
+        issues: number;
+      };
+      pacBytes: number;
+      generatedAt: string;
+    };
   };
   error?: string;
 }
 
-const enableProxyButton =
-  requiredElement<HTMLButtonElement>("#enable-test-proxy");
-
-const disableProxyButton =
-  requiredElement<HTMLButtonElement>("#disable-proxy");
-
 const proxyStatusElement =
   requiredElement<HTMLElement>("#proxy-status");
+let proxyEnabled = false;
 
 async function sendRuntimeMessage(
   type:
@@ -77,7 +95,7 @@ async function sendRuntimeMessage(
 
 checkProxyButton.addEventListener("click", async () => {
   checkProxyButton.disabled = true;
-  statusElement.textContent = "正在检测局域网 HTTP 代理…";
+  proxyStatusElement.textContent = "正在检查代理连接…";
 
   try {
     const response = await sendRuntimeMessage("CHECK_PROXY_CONNECTIVITY");
@@ -86,10 +104,10 @@ checkProxyButton.addEventListener("click", async () => {
       throw new Error(response.error ?? "局域网代理检测失败");
     }
 
-    statusElement.textContent = response.message ?? "局域网代理连接正常";
+    proxyStatusElement.textContent = response.message ?? "代理连接正常";
   } catch (error) {
-    statusElement.textContent =
-      `局域网代理连接失败：${error instanceof Error ? error.message : "未知错误"}`;
+    proxyStatusElement.textContent =
+      `连接失败：${error instanceof Error ? error.message : "请检查代理设置"}`;
   } finally {
     checkProxyButton.disabled = false;
   }
@@ -104,83 +122,59 @@ async function refreshProxyStatus(): Promise<void> {
     return;
   }
 
-  const mode = response.data?.mode ?? "未设置";
-  const control = response.data?.levelOfControl ?? "未知";
   const desiredEnabled = response.data?.desiredEnabled === true;
   const applied = response.data?.applied === true;
-  const lastEvent = response.data?.lastEvent;
   const proxyEndpoint = response.data?.proxyEndpoint;
-  const lastProxyError = response.data?.lastProxyError;
   const fallbackMode = response.data?.fallbackMode ?? "direct";
+  const engine = response.data?.ruleEngineStatus;
   const fallbackLabel = {
     direct: "本地直连",
     proxy: "局域网代理",
     system: "系统代理",
   }[fallbackMode];
 
-  enableProxyButton.disabled = applied;
-  disableProxyButton.disabled = !desiredEnabled && !applied;
+  proxyEnabled = desiredEnabled || applied;
+  proxyToggleButton.disabled = false;
+  proxyToggleButton.textContent = proxyEnabled ? "关闭分流" : "开启分流";
+  proxyToggleButton.classList.toggle("active", proxyEnabled);
+  statusDotElement.classList.toggle("active", applied);
+  proxyEndpointElement.textContent = proxyEndpoint ?? "未配置";
+  fallbackLabelElement.textContent = fallbackLabel;
+  ruleCountElement.textContent = engine
+    ? `${engine.statistics.effective} 条`
+    : "0 条";
 
-  if (applied && proxyEndpoint) {
-    statusElement.textContent =
-      `测试分流已启用：${proxyEndpoint}`;
+  if (applied) {
+    stateTitleElement.textContent = "分流已开启";
+    statusElement.textContent = "网站会按照已启用的规则连接";
   } else if (desiredEnabled) {
-    statusElement.textContent = "分流期望开启，但当前未生效";
+    stateTitleElement.textContent = "分流暂未生效";
+    statusElement.textContent = "请打开设置检查代理配置";
   } else {
-    statusElement.textContent = "测试分流未启用";
+    stateTitleElement.textContent = "分流已关闭";
+    statusElement.textContent = "Chrome 使用原来的网络设置";
   }
-
-  proxyStatusElement.textContent =
-    `分流状态：${applied ? "已开启" : "未开启"}；` +
-    `兜底：${fallbackLabel}；当前模式：${mode}；控制状态：${control}` +
-    (desiredEnabled && !applied
-      ? "；用户期望开启，但 Chrome 配置未生效"
-      : "") +
-    (lastEvent
-      ? `；最近事件：${lastEvent.type}（${new Date(lastEvent.occurredAt).toLocaleTimeString("zh-CN")}）`
-      : "") +
-    (lastProxyError
-      ? `；最近代理错误：${lastProxyError.error}${lastProxyError.fatal ? "（致命）" : ""}`
-      : "");
 }
 
-enableProxyButton.addEventListener("click", async () => {
-  enableProxyButton.disabled = true;
-  proxyStatusElement.textContent = "正在写入并验证分流设置…";
+proxyToggleButton.addEventListener("click", async () => {
+  proxyToggleButton.disabled = true;
+  proxyStatusElement.textContent = proxyEnabled ? "正在关闭…" : "正在开启…";
 
   try {
-    const response = await sendRuntimeMessage("ENABLE_TEST_PROXY");
+    const response = await sendRuntimeMessage(
+      proxyEnabled ? "DISABLE_PROXY" : "ENABLE_TEST_PROXY",
+    );
 
     if (!response.ok) {
-      throw new Error(response.error ?? "启用失败");
+      throw new Error(response.error ?? "操作失败");
     }
 
-    statusElement.textContent = response.message ?? "分流已开启";
+    proxyStatusElement.textContent = proxyEnabled ? "分流已关闭" : "分流已开启";
     await refreshProxyStatus();
   } catch (error) {
     proxyStatusElement.textContent =
-      error instanceof Error ? error.message : "启用失败";
-    enableProxyButton.disabled = false;
-  }
-});
-
-disableProxyButton.addEventListener("click", async () => {
-  disableProxyButton.disabled = true;
-  proxyStatusElement.textContent = "正在关闭分流…";
-
-  try {
-    const response = await sendRuntimeMessage("DISABLE_PROXY");
-
-    if (!response.ok) {
-      throw new Error(response.error ?? "关闭失败");
-    }
-
-    statusElement.textContent = response.message ?? "分流已关闭";
-    await refreshProxyStatus();
-  } catch (error) {
-    proxyStatusElement.textContent =
-      error instanceof Error ? error.message : "关闭失败";
-    disableProxyButton.disabled = false;
+      error instanceof Error ? error.message : "操作失败";
+    proxyToggleButton.disabled = false;
   }
 });
 
