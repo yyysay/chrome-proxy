@@ -11,6 +11,7 @@ export default defineConfig({
       input: {
         popup: resolve(import.meta.dirname, "popup.html"),
         onboarding: resolve(import.meta.dirname, "onboarding.html"),
+        settings: resolve(import.meta.dirname, "settings.html"),
         "service-worker": resolve(
           import.meta.dirname,
           "src/background/service-worker.ts",

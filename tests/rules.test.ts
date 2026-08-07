@@ -70,6 +70,26 @@ DOMAIN,after.example,PROXY`);
   assert.match(result.script, /return "DIRECT";/);
 });
 
+test("routes managed rule source hosts through the configured proxy before user rules", () => {
+  const parsed = parseRules("DOMAIN,raw.githubusercontent.com,DIRECT");
+  const result = buildPacScript(
+    parsed.rules,
+    { host: "127.0.0.1", port: 7890 },
+    "DIRECT",
+    ["raw.githubusercontent.com"],
+  );
+
+  const forcedIndex = result.script.indexOf('dnsDomainIs(host, ".raw.githubusercontent.com")');
+  const userRuleIndex = result.script.indexOf('host === "raw.githubusercontent.com"', forcedIndex + 1);
+
+  assert.ok(forcedIndex >= 0);
+  assert.ok(userRuleIndex > forcedIndex);
+  assert.match(
+    result.script.slice(forcedIndex, userRuleIndex),
+    /return "PROXY 127\.0\.0\.1:7890";/,
+  );
+});
+
 test("falls back to DIRECT and warns when REJECT cannot be represented", () => {
   const parsed = parseRules("DOMAIN-KEYWORD,ads,REJECT");
   const result = buildPacScript(parsed.rules, {
@@ -81,20 +101,14 @@ test("falls back to DIRECT and warns when REJECT cannot be represented", () => {
   assert.match(result.script, /return "DIRECT";/);
 });
 
-test("default rule packs are empty", () => {
+test("managed rule packs are enabled by default", () => {
   const compiled = compileRulePacks(
     DEFAULT_RULE_PACKS,
     DEFAULT_ENABLED_RULE_PACK_IDS,
   );
 
-  assert.deepEqual(
-    compiled.rules.map(({ type, value, action }) => ({
-      type,
-      value,
-      action,
-    })),
-    [],
-  );
+  assert.ok(compiled.rules.some((rule) => rule.value === "github.com" && rule.action === "PROXY"));
+  assert.ok(compiled.rules.some((rule) => rule.value === "pinterest" && rule.action === "PROXY"));
 });
 
 test("disabled rule packs are excluded without changing catalog order", () => {
@@ -144,9 +158,11 @@ test("normalizes domain-provider YAML and ignores typed Clash payload", () => {
     [
       "DOMAIN-SUFFIX,google.com,PROXY",
       "DOMAIN,accounts.google.com,PROXY",
+      "DOMAIN-SUFFIX,pinterest.com,PROXY",
+      "DOMAIN,pinimg.com,PROXY",
     ].join("\n"),
   );
-  assert.equal(analyzeProviderRules(content, "PROXY").ignored, 2);
+  assert.equal(analyzeProviderRules(content, "PROXY").ignored, 0);
 });
 
 test("proxy fallback sends unmatched websites to configured proxy", () => {
@@ -207,4 +223,22 @@ DOMAIN-KEYWORD,pinterest,PROXY`).rules;
   assert.equal(ruleMatchesHostname(rules[0], "www.api.example.com"), false);
   assert.equal(ruleMatchesHostname(rules[1], "mail.google.com"), true);
   assert.equal(ruleMatchesHostname(rules[2], "www.pinterest.de"), true);
+});
+
+test("custom catalog order overrides a conflicting managed rule", () => {
+  const custom = {
+    id: "custom-github-direct",
+    name: "Custom GitHub Direct",
+    description: "test",
+    enabledByDefault: false,
+    defaultUrl: "",
+    defaultAction: "DIRECT" as const,
+    rulesText: "DOMAIN-SUFFIX,github.com,DIRECT",
+  };
+  const compiled = compileRulePacks(
+    [custom, ...DEFAULT_RULE_PACKS],
+    [custom.id, ...DEFAULT_ENABLED_RULE_PACK_IDS],
+  );
+  const github = compiled.rules.find((rule) => rule.type === "DOMAIN-SUFFIX" && rule.value === "github.com");
+  assert.equal(github?.action, "DIRECT");
 });

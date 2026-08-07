@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Auto Proxy 高级设置</title>
+  </head>
+  <body>
+    <main class="page">
+      <section class="settings-surface">
+        <header class="app-header">
+          <div class="brand-heading">
+            <span class="brand-icon" aria-hidden="true">A</span>
+            <div>
+              <p class="eyebrow">AUTO PROXY</p>
+              <h1>高级设置</h1>
+              <p class="lead">管理代理来源、网络出口与自定义分流规则。</p>
+            </div>
+          </div>
+          <div id="proxy-health-badge" class="config-badge" data-state="unhealthy" aria-label="代理健康状态">
+            <span class="config-badge-name">代理健康</span>
+            <span class="config-badge-dot" aria-hidden="true"></span>
+            <span id="proxy-health-text">异常</span>
+          </div>
+        </header>
+
+        <div class="section-nav">
+          <nav class="tabs" role="tablist" aria-label="功能设置">
+            <button class="tab active" type="button" role="tab" aria-selected="true" data-tab-target="proxy">代理</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-tab-target="rules">规则</button>
+          </nav>
+          <button id="about-button" class="about-button" type="button" aria-pressed="false">关于</button>
+        </div>
+
+        <div class="content-panel">
+          <section data-tab-panel="proxy">
+            <div class="section-heading compact-heading">
+              <div>
+                <h2>代理来源</h2>
+                <p class="section-description">默认使用集中维护的代理订阅；需要调试时可切换到手动覆盖。</p>
+              </div>
+            </div>
+
+            <div class="source-switch" role="radiogroup" aria-label="代理来源">
+              <label>
+                <input id="proxy-source-subscription" type="radio" name="proxy-source" value="subscription" />
+                <span><strong>代理订阅</strong><small>推荐 · 多设备统一维护</small></span>
+              </label>
+              <label>
+                <input id="proxy-source-manual" type="radio" name="proxy-source" value="manual" />
+                <span><strong>手动覆盖</strong><small>仅当前设备使用</small></span>
+              </label>
+            </div>
+
+            <section id="subscription-settings" class="settings-block">
+              <div class="settings-block-heading">
+                <span><strong>订阅地址</strong><small>集中获取当前代理配置。</small></span>
+                <span id="subscription-state-badge" class="mini-badge">未配置</span>
+              </div>
+              <form id="subscription-form" class="subscription-form">
+                <input id="subscription-url" type="url" placeholder="https://example.com/proxies.json" autocomplete="off" />
+                <button type="submit">保存并更新</button>
+              </form>
+              <div class="subscription-meta-row">
+                <small id="subscription-meta">未加载订阅</small>
+                <button id="refresh-proxy-subscription" class="text-button" type="button">立即更新</button>
+              </div>
+            </section>
+
+            <section id="manual-settings" class="settings-block" hidden>
+              <div class="settings-block-heading">
+                <span><strong>手动代理</strong><small>覆盖代理订阅，仅影响当前设备。</small></span>
+              </div>
+              <form id="manual-proxy-form" class="proxy-form">
+                <div class="proxy-fields">
+                  <label>
+                    <span>代理地址</span>
+                    <input id="manual-proxy-host" type="text" value="127.0.0.1" autocomplete="off" required />
+                  </label>
+                  <label class="port-field">
+                    <span>端口</span>
+                    <input id="manual-proxy-port" type="number" value="7890" min="1" max="65535" required />
+                  </label>
+                </div>
+                <div class="form-actions"><button type="submit">保存手动代理</button></div>
+              </form>
+            </section>
+
+            <section class="active-proxy-card" aria-labelledby="active-proxy-title">
+              <span>
+                <small>当前生效代理</small>
+                <strong id="active-proxy-title">读取中</strong>
+              </span>
+              <code id="active-proxy-endpoint">—</code>
+            </section>
+
+            <section class="network-info-panel" aria-labelledby="network-info-title">
+              <header class="network-info-heading">
+                <span>
+                  <strong id="network-info-title">网络信息</strong>
+                  <small>本地直连 IP 与代理出口 IP 不一致时，判定代理健康。</small>
+                </span>
+                <div class="network-info-actions">
+                  <small id="network-last-checked" class="network-last-checked">尚未检测</small>
+                  <button id="refresh-network-info" class="secondary-button network-refresh-button" type="button">刷新</button>
+                </div>
+              </header>
+
+              <div class="network-route-grid">
+                <article class="network-route-card" data-route="direct">
+                  <span class="network-route-label">本地直连</span>
+                  <strong id="direct-exit-ip" class="network-route-ip">—</strong>
+                  <div class="network-route-detail"><span>位置</span><small id="direct-exit-location">—</small></div>
+                  <div class="network-route-detail"><span>网络</span><small id="direct-exit-network">—</small></div>
+                  <span id="direct-exit-time" class="network-route-time"></span>
+                </article>
+                <article class="network-route-card" data-route="proxy">
+                  <span class="network-route-label">代理出口</span>
+                  <strong id="proxy-exit-ip" class="network-route-ip">—</strong>
+                  <div class="network-route-detail"><span>位置</span><small id="proxy-exit-location">—</small></div>
+                  <div class="network-route-detail"><span>网络</span><small id="proxy-exit-network">—</small></div>
+                  <span id="proxy-exit-time" class="network-route-time"></span>
+                </article>
+              </div>
+              <p id="network-route-summary" class="network-route-summary">尚无当前代理节点的检测结果。</p>
+            </section>
+          </section>
+
+          <section class="rule-packs" data-tab-panel="rules" hidden>
+            <div class="section-heading">
+              <div>
+                <h2>规则</h2>
+                <p class="section-description">默认规则保持简洁；需要时可进入管理页修改并随时恢复默认。</p>
+              </div>
+              <button id="refresh-enabled-rules" class="secondary-button" type="button">更新规则</button>
+            </div>
+
+            <section class="managed-rule-section">
+              <div class="managed-rule-summary">
+                <span class="managed-rule-icon" aria-hidden="true">↗</span>
+                <span class="managed-rule-summary-copy">
+                  <strong>默认分流规则</strong>
+                  <small>产品预设 · 自动启用</small>
+                </span>
+                <span id="managed-rule-count" class="mini-badge">读取中</span>
+                <button id="manage-managed-rules" class="secondary-button compact-button" type="button">管理</button>
+              </div>
+            </section>
+
+            <section class="custom-rule-section">
+              <div class="subsection-heading">
+                <span><strong>自定义规则</strong><small>高级覆盖 · 冲突时优先于默认规则</small></span>
+                <button id="add-rule-pack" class="text-button" type="button">+ 添加规则</button>
+              </div>
+              <div id="custom-rule-list" class="rule-pack-list"></div>
+              <p id="custom-rule-empty" class="empty-state" hidden>暂无自定义规则。</p>
+            </section>
+
+            <label class="fallback-setting" for="fallback-mode">
+              <span>
+                <strong>未命中规则</strong>
+                <small id="fallback-description">未命中任何规则的网站由 Chrome 直接连接。</small>
+              </span>
+              <select id="fallback-mode">
+                <option value="direct">直接连接</option>
+                <option value="proxy">当前代理</option>
+                <option value="system">系统代理</option>
+              </select>
+            </label>
+
+            <div class="rules-tools-grid">
+              <form id="rule-match-form" class="rule-match-form">
+                <label for="rule-match-input">
+                  <span>规则命中测试</span>
+                  <input id="rule-match-input" placeholder="例如 www.google.com" />
+                </label>
+                <button type="submit" class="secondary-button">测试</button>
+              </form>
+
+              <div class="auto-refresh-setting">
+                <span><strong>自动更新规则</strong><small>更新默认规则与已启用的远程自定义规则。</small></span>
+                <span class="auto-refresh-controls">
+                  <label class="rule-toggle" aria-label="启用自动更新规则">
+                    <input id="auto-refresh-enabled" type="checkbox" /><span aria-hidden="true"></span>
+                  </label>
+                  <select id="auto-refresh-interval" aria-label="自动更新间隔">
+                    <option value="6">每 6 小时</option>
+                    <option value="12">每 12 小时</option>
+                    <option value="24">每天</option>
+                    <option value="168">每周</option>
+                  </select>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section data-view-panel="about" hidden>
+            <div class="section-heading compact-heading">
+              <div><h2>关于</h2><p class="section-description">Auto Proxy 是一个轻量的规则分流代理工具。</p></div>
+            </div>
+            <dl class="about-list">
+              <div><dt>扩展版本</dt><dd id="version">读取中</dd></div>
+              <div><dt>安装记录</dt><dd id="installed-at">读取中</dd></div>
+            </dl>
+            <details class="diagnostic-panel">
+              <summary>
+                <span><strong>诊断与故障排查</strong><small>查看最近的代理、订阅和后台错误</small></span>
+                <span class="diagnostic-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="diagnostic-content">
+                <div class="diagnostic-heading">
+                  <p class="section-description">最多保留最近 30 条记录。</p>
+                  <button id="clear-diagnostics" class="secondary-button" type="button">清除记录</button>
+                </div>
+                <div id="diagnostic-list" class="diagnostic-list"></div>
+              </div>
+            </details>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast-host" class="toast-host" aria-live="polite" aria-atomic="false"></div>
+
+    <dialog id="managed-rules-dialog" class="managed-rules-dialog">
+      <section class="dialog-panel">
+        <header class="dialog-header">
+          <div>
+            <p class="eyebrow">DEFAULT RULES</p>
+            <h2>默认分流规则</h2>
+            <p>通常无需调整。高级用户可以修改某一组规则，修改后可随时恢复产品默认。</p>
+          </div>
+          <button id="managed-rules-close" class="icon-button" type="button" aria-label="关闭默认规则管理">×</button>
+        </header>
+        <div id="managed-rule-list" class="managed-rule-list"></div>
+      </section>
+    </dialog>
+
+    <dialog id="rule-editor-dialog" class="rule-editor-dialog">
+      <form id="rule-editor-form" class="rule-editor-form">
+        <header class="rule-editor-header">
+          <div><p id="rule-editor-kicker" class="eyebrow">CUSTOM RULE</p><h2 id="rule-editor-title">编辑规则</h2></div>
+          <button id="rule-editor-close" class="icon-button" type="button" aria-label="关闭编辑器">×</button>
+        </header>
+        <div class="rule-editor-grid">
+          <label class="rule-editor-name"><span>规则名称</span><input id="rule-editor-name" autocomplete="off" required /></label>
+          <label><span>连接方式</span><select id="rule-editor-action"><option value="PROXY">代理</option><option value="DIRECT">直连</option></select></label>
+          <label class="rule-editor-url"><span>订阅地址</span><input id="rule-editor-url" type="url" placeholder="https://example.com/rules.yaml" /></label>
+          <label><span>内容策略</span><select id="rule-editor-source-strategy"><option value="local-first">本地优先</option><option value="subscription-first">订阅优先</option><option value="merge">合并</option></select></label>
+        </div>
+        <p id="rule-editor-hint" class="rule-editor-hint">自定义规则会在默认规则之前编译，因此可以明确覆盖产品默认行为。</p>
+        <label class="rule-editor-content">
+          <span>本地规则内容</span>
+          <textarea id="rule-editor-content" placeholder="推荐一行一个：+.example.com&#10;example.org"></textarea>
+          <small class="rule-format-help">无需写 payload；同时兼容 YAML payload 与 DOMAIN / DOMAIN-SUFFIX 等格式。</small>
+        </label>
+        <p id="rule-editor-meta" class="rule-editor-meta"></p>
+        <footer class="rule-editor-actions">
+          <button id="rule-editor-delete" class="danger-button" type="button">删除规则</button>
+          <span class="rule-editor-actions-right">
+            <button id="rule-editor-refresh" class="secondary-button" type="button">立即下载</button>
+            <button id="rule-editor-cancel" class="secondary-button" type="button">取消</button>
+            <button type="submit">保存规则</button>
+          </span>
+        </footer>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/settings/settings.ts"></script>
+  </body>
+</html>

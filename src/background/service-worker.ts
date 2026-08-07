@@ -1,28 +1,34 @@
 import {
   beginNetworkInfoCheck,
-  beginProxyConnectivityCheck,
-  disableProxy,
-  enableTestProxy,
-  finishProxyConnectivityCheck,
-  getRulePackSettings,
-  getProxyStatus,
-  reconcileProxy,
-  updateEnabledRulePacks,
-  updateSimpleEnabledRulePacks,
-  updateUiMode,
-  updateFallbackMode,
-  saveRulePack,
-  refreshRulePack,
   deleteRulePack,
-  refreshEnabledRulePacks,
+  disableProxy,
+  enableProxy,
+  finishNetworkInfoCheck,
+  getProxyProviderSettings,
+  getProxyStatus,
+  getRulePackSettings,
   migrateStoredData,
+  reconcileProxy,
+  refreshEnabledRulePacks,
+  refreshProxySubscription,
+  refreshRulePack,
+  resetManagedRulePack,
+  runExclusiveProxyMutation,
+  saveManualProxyConfig,
+  saveRulePack,
   testRuleMatch,
+  updateEnabledRulePacks,
+  updateProxySourceMode,
+  updateProxySubscriptionUrl,
+  updateFallbackMode,
 } from "../proxy/proxy-manager";
 
 const INSTALL_TIME_KEY = "installedAt";
 const LAST_PROXY_ERROR_KEY = "lastProxyError";
 const DIAGNOSTIC_EVENTS_KEY = "diagnosticEvents";
 const RULE_REFRESH_ALARM = "refresh-enabled-rules";
+const PROXY_SUBSCRIPTION_REFRESH_ALARM = "refresh-proxy-subscription";
+const PROXY_SUBSCRIPTION_REFRESH_MINUTES = 6 * 60;
 const AUTO_REFRESH_ENABLED_KEY = "autoRuleRefreshEnabled";
 const AUTO_REFRESH_INTERVAL_KEY = "autoRuleRefreshIntervalHours";
 const ALLOWED_REFRESH_INTERVAL_HOURS = new Set([6, 12, 24, 168]);
@@ -36,20 +42,20 @@ interface DiagnosticEvent {
 }
 
 type RuntimeMessage =
-  | { type: "ENABLE_TEST_PROXY" }
+  | { type: "ENABLE_PROXY" }
   | { type: "DISABLE_PROXY" }
   | { type: "GET_PROXY_STATUS" }
+  | { type: "GET_PROXY_PROVIDER_STATE" }
+  | { type: "SET_PROXY_SOURCE_MODE"; mode: "subscription" | "manual" }
+  | { type: "SAVE_MANUAL_PROXY"; host: string; port: number }
+  | { type: "SAVE_PROXY_SUBSCRIPTION"; url: string }
+  | { type: "REFRESH_PROXY_SUBSCRIPTION" }
   | { type: "UPDATE_RULE_PACKS"; enabledPackIds: string[] }
-  | { type: "UPDATE_SIMPLE_RULE_PACKS"; enabledPackIds: string[] }
-  | { type: "UPDATE_UI_MODE"; mode: "simple" | "expert" }
-  | {
-      type: "UPDATE_FALLBACK_MODE";
-      fallbackMode: "direct" | "proxy" | "system";
-    }
-  | { type: "CHECK_PROXY_CONNECTIVITY" }
+  | { type: "UPDATE_FALLBACK_MODE"; fallbackMode: "direct" | "proxy" | "system" }
   | { type: "GET_NETWORK_INFO" }
   | { type: "GET_RULE_PACK_SETTINGS" }
   | { type: "REFRESH_RULE_PACK"; packId: string }
+  | { type: "RESET_MANAGED_RULE_PACK"; packId: string }
   | {
       type: "SAVE_RULE_PACK";
       packId?: string;
@@ -80,7 +86,6 @@ interface RuntimeResponse {
 let reconcileTask: Promise<boolean> | undefined;
 let forceReconcileQueued = false;
 let diagnosticWrite = Promise.resolve();
-let proxyProbeQueue: Promise<void> = Promise.resolve();
 
 interface NetworkGeoInfo {
   country?: string;
@@ -96,11 +101,6 @@ interface NetworkRouteInfo extends NetworkGeoInfo {
   requestMs: number;
 }
 
-function runExclusiveProxyProbe<T>(task: () => Promise<T>): Promise<T> {
-  const run = proxyProbeQueue.then(task, task);
-  proxyProbeQueue = run.then(() => undefined, () => undefined);
-  return run;
-}
 
 function isLikelyIp(value: string): boolean {
   return value.length > 0 && value.length <= 45 && /^[0-9a-f:.]+$/i.test(value);
@@ -165,7 +165,7 @@ async function loadRuleAutoRefreshSettings(): Promise<RuleAutoRefreshSettings> {
   ]);
 
   return {
-    enabled: stored[AUTO_REFRESH_ENABLED_KEY] === true,
+    enabled: stored[AUTO_REFRESH_ENABLED_KEY] !== false,
     intervalHours: normalizeRefreshIntervalHours(stored[AUTO_REFRESH_INTERVAL_KEY]),
   };
 }
@@ -202,12 +202,28 @@ async function updateRuleAutoRefreshSettings(
   return syncRuleRefreshAlarm();
 }
 
+async function syncProxySubscriptionAlarm(): Promise<void> {
+  const state = await getProxyProviderSettings();
+  if (!state.subscriptionUrl) {
+    await chrome.alarms.clear(PROXY_SUBSCRIPTION_REFRESH_ALARM);
+    return;
+  }
+  await chrome.alarms.create(PROXY_SUBSCRIPTION_REFRESH_ALARM, {
+    periodInMinutes: PROXY_SUBSCRIPTION_REFRESH_MINUTES,
+  });
+}
+
 async function syncActionState(): Promise<void> {
   const status = await getProxyStatus();
   const active = status.applied;
+  const actionApi = chrome.action as typeof chrome.action & {
+    setBadgeTextColor?: (details: { color: string }) => Promise<void>;
+  };
+
   await Promise.all([
-    chrome.action.setBadgeText({ text: active ? " " : "" }),
-    chrome.action.setBadgeBackgroundColor({ color: "#16a34a" }),
+    chrome.action.setBadgeText({ text: active ? "●" : "" }),
+    chrome.action.setBadgeBackgroundColor({ color: [0, 0, 0, 0] as [number, number, number, number] }),
+    actionApi.setBadgeTextColor?.({ color: "#22a06b" }) ?? Promise.resolve(),
     chrome.action.setTitle({
       title: active ? "规则分流已开启" : "规则分流已关闭",
     }),
@@ -256,7 +272,7 @@ function scheduleReconcile(reason: string, forceApply = false): void {
 
       if (forceReconcileQueued) {
         forceReconcileQueued = false;
-        scheduleReconcile("proxyConfig.queuedChange", true);
+        scheduleReconcile("proxyState.queuedChange", true);
       }
     });
 }
@@ -265,6 +281,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   void (async () => {
     await migrateStoredData();
     await syncRuleRefreshAlarm();
+    await syncProxySubscriptionAlarm();
     const stored = await chrome.storage.local.get(INSTALL_TIME_KEY);
 
     if (!stored[INSTALL_TIME_KEY]) {
@@ -296,6 +313,7 @@ chrome.runtime.onStartup.addListener(() => {
   void (async () => {
     await migrateStoredData();
     await syncRuleRefreshAlarm();
+    await syncProxySubscriptionAlarm();
     scheduleReconcile("runtime.startup");
     await syncActionState();
   })().catch((error: unknown) => {
@@ -308,32 +326,50 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name !== RULE_REFRESH_ALARM) {
+  if (alarm.name === RULE_REFRESH_ALARM) {
+    void (async () => {
+      const settings = await loadRuleAutoRefreshSettings();
+      if (!settings.enabled) {
+        await chrome.alarms.clear(RULE_REFRESH_ALARM);
+        return;
+      }
+      const result = await refreshEnabledRulePacks();
+      if (result.cached > 0) {
+        await recordDiagnosticEvent({
+          type: "subscription",
+          message: "部分规则自动更新失败，已继续使用现有规则",
+          details: `回退到现有规则 ${result.cached} 个`,
+        });
+      }
+    })().catch((error: unknown) => {
+      void recordDiagnosticEvent({
+        type: "subscription",
+        message: "规则自动更新失败",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    });
     return;
   }
 
-  void (async () => {
-    const settings = await loadRuleAutoRefreshSettings();
-    if (!settings.enabled) {
-      await chrome.alarms.clear(RULE_REFRESH_ALARM);
-      return;
-    }
-
-    const result = await refreshEnabledRulePacks();
-    if (result.cached > 0) {
-      await recordDiagnosticEvent({
+  if (alarm.name === PROXY_SUBSCRIPTION_REFRESH_ALARM) {
+    void refreshProxySubscription().then((result) => {
+      if (result.updateFailed || result.usedCached) {
+        void recordDiagnosticEvent({
+          type: "subscription",
+          message: result.usedCached
+            ? "代理订阅更新失败，继续使用上次配置"
+            : "代理订阅自动更新失败",
+          details: result.updateFailed ?? result.state.subscription?.error,
+        });
+      }
+    }).catch((error: unknown) => {
+      void recordDiagnosticEvent({
         type: "subscription",
-        message: "部分规则自动更新失败，已继续使用现有规则",
-        details: `回退到现有规则 ${result.cached} 个`,
+        message: "代理订阅自动更新失败",
+        details: error instanceof Error ? error.message : String(error),
       });
-    }
-  })().catch((error: unknown) => {
-    void recordDiagnosticEvent({
-      type: "subscription",
-      message: "规则自动更新失败",
-      details: error instanceof Error ? error.message : String(error),
     });
-  });
+  }
 });
 
 chrome.proxy.settings.onChange.addListener((details) => {
@@ -366,26 +402,15 @@ chrome.proxy.onProxyError.addListener((details) => {
   });
 });
 
-chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local") {
-    return;
-  }
-
-  if (changes.proxyConfig) {
-    // 设置页保存地址后，若分流处于开启状态，立即用新地址重建 PAC。
-    scheduleReconcile("proxyConfig.changed", true);
-  }
-
-});
 
 async function handleMessage(message: RuntimeMessage): Promise<RuntimeResponse> {
   switch (message.type) {
-    case "ENABLE_TEST_PROXY": {
-      const config = await enableTestProxy();
+    case "ENABLE_PROXY": {
+      const config = await enableProxy();
       await syncActionState();
       return {
         ok: true,
-        message: `测试分流已启用：http://${config.host}:${config.port}`,
+        message: `代理已启用：http://${config.host}:${config.port}`,
       };
     }
 
@@ -397,88 +422,80 @@ async function handleMessage(message: RuntimeMessage): Promise<RuntimeResponse> 
     case "GET_PROXY_STATUS":
       return { ok: true, data: await getProxyStatus() };
 
+    case "GET_PROXY_PROVIDER_STATE":
+      return { ok: true, data: await getProxyProviderSettings() };
+
+    case "SET_PROXY_SOURCE_MODE": {
+      const result = await updateProxySourceMode(message.mode);
+      await syncActionState();
+      return {
+        ok: true,
+        data: result,
+        message: message.mode === "manual" ? "已使用手动代理覆盖" : "已切换到代理订阅",
+      };
+    }
+
+    case "SAVE_MANUAL_PROXY": {
+      const result = await saveManualProxyConfig(message.host, message.port);
+      await syncActionState();
+      return { ok: true, data: result, message: "手动代理已保存并启用" };
+    }
+
+    case "SAVE_PROXY_SUBSCRIPTION": {
+      const result = await updateProxySubscriptionUrl(message.url);
+      await syncProxySubscriptionAlarm();
+      await syncActionState();
+      return {
+        ok: true,
+        data: result,
+        message: result.updateFailed
+          ? "订阅地址已保存，但本次更新失败"
+          : result.usedCached
+            ? "订阅地址已保存；更新失败，继续使用上次配置"
+            : "代理订阅已保存并更新",
+      };
+    }
+
+    case "REFRESH_PROXY_SUBSCRIPTION": {
+      const result = await refreshProxySubscription();
+      await syncActionState();
+      return {
+        ok: true,
+        data: result,
+        message: result.updateFailed
+          ? "代理订阅更新失败"
+          : result.usedCached ? "更新失败，继续使用上次代理配置" : "代理订阅已更新",
+      };
+    }
+
+
     case "UPDATE_RULE_PACKS": {
       const result = await updateEnabledRulePacks(message.enabledPackIds);
       return {
         ok: true,
         data: result,
         message: result.pacReapplied
-          ? "规则已保存，PAC 已重新应用"
-          : "规则已保存；分流未开启，暂不应用 PAC",
-      };
-    }
-
-    case "UPDATE_SIMPLE_RULE_PACKS": {
-      const result = await updateSimpleEnabledRulePacks(message.enabledPackIds);
-      return {
-        ok: true,
-        data: result,
-        message: result.pacReapplied
-          ? "简易规则已更新，PAC 已重新应用"
-          : "简易规则已保存",
-      };
-    }
-
-    case "UPDATE_UI_MODE": {
-      const result = await updateUiMode(message.mode);
-      await syncActionState();
-      return {
-        ok: true,
-        data: result,
-        message: message.mode === "simple"
-          ? "已切换到简易模式，仅预设网站走代理"
-          : "已切换到高级模式，恢复高级规则配置",
+          ? "自定义规则已保存，PAC 已重新应用"
+          : "自定义规则已保存",
       };
     }
 
     case "UPDATE_FALLBACK_MODE": {
       const result = await updateFallbackMode(message.fallbackMode);
+      await syncActionState();
       return {
         ok: true,
         data: result,
-        message: message.fallbackMode === "system"
-          ? "已交还系统代理；自定义规则分流暂停"
-          : "兜底策略已保存，PAC 已更新",
+        message: message.fallbackMode === "direct"
+          ? "未命中规则将直接连接"
+          : message.fallbackMode === "proxy"
+            ? "未命中规则将使用当前代理"
+            : "已交还系统代理；规则分流会暂停",
       };
     }
 
-    case "CHECK_PROXY_CONNECTIVITY":
-      return runExclusiveProxyProbe(async () => {
-        const config = await beginProxyConnectivityCheck();
-
-        try {
-          // 这里只测“通过代理完成一次 HTTP 请求”的耗时，不代表下载带宽。
-          const requestStartedAt = performance.now();
-          const url = `https://ip125.com/?proxy-connectivity-check=${Date.now()}`;
-          const response = await fetch(url, {
-            cache: "no-store",
-            signal: AbortSignal.timeout(8000),
-          });
-
-          if (!response.ok) {
-            throw new Error(`IP125 返回 HTTP ${response.status}`);
-          }
-
-          await chrome.storage.local.remove(LAST_PROXY_ERROR_KEY);
-          const requestMs = Math.max(1, Math.round(performance.now() - requestStartedAt));
-
-          return {
-            ok: true,
-            data: {
-              endpoint: `http://${config.host}:${config.port}`,
-              requestMs,
-              // 兼容旧前端字段；语义同样是请求耗时，不是“测速”。
-              latencyMs: requestMs,
-            },
-            message: `局域网代理连接正常：http://${config.host}:${config.port}`,
-          };
-        } finally {
-          await finishProxyConnectivityCheck();
-        }
-      });
-
     case "GET_NETWORK_INFO":
-      return runExclusiveProxyProbe(async () => {
+      return runExclusiveProxyMutation(async () => {
         const config = await beginNetworkInfoCheck();
         let directResult: PromiseSettledResult<NetworkRouteInfo>;
         let proxyResult: PromiseSettledResult<NetworkRouteInfo>;
@@ -515,7 +532,7 @@ async function handleMessage(message: RuntimeMessage): Promise<RuntimeResponse> 
           [directResult, proxyResult] = await Promise.allSettled([directRequest, proxyRequest]);
         } finally {
           // 网络信息探测期间使用临时 PAC；无论成功失败都恢复用户原来的代理状态。
-          await finishProxyConnectivityCheck();
+          await finishNetworkInfoCheck();
         }
 
         const direct = directResult.status === "fulfilled" ? directResult.value : undefined;
@@ -557,6 +574,10 @@ async function handleMessage(message: RuntimeMessage): Promise<RuntimeResponse> 
     case "REFRESH_RULE_PACK":
       await refreshRulePack(message.packId);
       return { ok: true, message: "规则已下载并应用" };
+
+    case "RESET_MANAGED_RULE_PACK":
+      await resetManagedRulePack(message.packId);
+      return { ok: true, message: "默认规则已恢复" };
 
     case "SAVE_RULE_PACK": {
       const packId = await saveRulePack(

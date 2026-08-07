@@ -10,6 +10,7 @@ export interface RulePackDefinition {
   defaultUrl: string;
   defaultAction: "DIRECT" | "PROXY";
   rulesText?: string;
+  kind?: "managed" | "custom";
 }
 
 export interface RulePackSourceState {

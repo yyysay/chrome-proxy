@@ -3,34 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Rule Proxy Lab</title>
+    <title>Auto Proxy</title>
   </head>
   <body>
     <main class="panel">
-      <header class="header">
-        <span class="logo" aria-hidden="true">R</span>
-        <strong>规则分流</strong>
-        <button id="open-settings" class="icon-button" type="button" title="打开设置">设置</button>
+      <header class="popup-header">
+        <span class="brand-mark" aria-hidden="true">A</span>
+        <strong>Auto Proxy</strong>
       </header>
 
-      <section class="state-card">
-        <div id="status-dot" class="status-dot" aria-hidden="true"></div>
-        <div>
-          <h1 id="state-title">正在读取…</h1>
-          <p id="status">请稍候</p>
-        </div>
+      <section class="switch-card" aria-label="Auto Proxy 开关">
+        <span class="switch-title">代理分流</span>
+        <button id="proxy-toggle" class="proxy-switch" type="button" role="switch" aria-checked="false" aria-label="开启或关闭 Auto Proxy">
+          <span class="proxy-switch-track" aria-hidden="true"><span></span></span>
+          <strong id="toggle-label">OFF</strong>
+        </button>
       </section>
 
-      <button id="proxy-toggle" class="primary-button" type="button">开启分流</button>
-
-      <dl class="summary">
-        <div><dt>代理地址</dt><dd id="proxy-endpoint">未配置</dd></div>
-        <div><dt>未命中规则</dt><dd id="fallback-label">本地直连</dd></div>
-        <div><dt>已加载规则</dt><dd id="rule-count">0 条</dd></div>
-      </dl>
-
-      <button id="check-proxy" class="secondary-button" type="button">检查代理连接</button>
-      <p id="proxy-status" class="feedback" role="status"></p>
+      <button id="open-settings" class="settings-link" type="button">高级设置</button>
     </main>
     <script type="module" src="/src/popup/popup.ts"></script>
   </body>

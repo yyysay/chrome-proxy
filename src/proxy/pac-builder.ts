@@ -47,6 +47,7 @@ export function buildPacScript(
   rules: ParsedRule[],
   proxy: PacProxyConfig,
   fallbackAction: "DIRECT" | "PROXY",
+  forcedProxyHosts: readonly string[] = [],
 ): PacBuildResult {
   const warnings: string[] = [];
 
@@ -54,6 +55,15 @@ export function buildPacScript(
     "function FindProxyForURL(url, host) {",
     "  host = host.toLowerCase();",
   ];
+
+  const forcedProxyResult = JSON.stringify(`PROXY ${proxy.host}:${proxy.port}`);
+  for (const value of forcedProxyHosts) {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) continue;
+    const domain = JSON.stringify(normalized);
+    const suffix = JSON.stringify(`.${normalized}`);
+    lines.push(`  if (host === ${domain} || dnsDomainIs(host, ${suffix})) return ${forcedProxyResult};`);
+  }
 
   for (const rule of rules) {
     const result = getPacResult(rule.action, proxy);

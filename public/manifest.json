@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Rule Proxy Lab",
-  "description": "轻量 Chrome 规则分流扩展。",
+  "name": "Auto Proxy",
+  "description": "轻量 Chrome 规则分流代理扩展。",
   "version": "0.0.1",
   "permissions": [
     "storage",
@@ -9,11 +9,8 @@
     "alarms"
   ],
   "host_permissions": [
-    "https://ip125.com/*",
     "https://raw.githubusercontent.com/*",
-    "https://ip125.com/*",
     "https://myip.ipip.net/*",
-    "https://api-ipv4.ip.sb/*",
     "https://api.ip.sb/*"
   ],
   "optional_host_permissions": [
@@ -25,8 +22,8 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Rule Proxy Lab",
+    "default_title": "Auto Proxy",
     "default_popup": "popup.html"
   },
-  "options_page": "onboarding.html"
+  "options_page": "settings.html"
 }
