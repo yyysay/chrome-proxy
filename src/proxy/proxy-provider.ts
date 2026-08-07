@@ -36,7 +36,7 @@ export interface ProxyProviderState {
 }
 
 // 发布前在这里填入你的正式代理配置订阅地址。
-export const DEFAULT_PROXY_SUBSCRIPTION_URL = "";
+export const DEFAULT_PROXY_SUBSCRIPTION_URL = "https://dufs.ms.y3-3am.top/autoproxy/proxies.json";
 
 export const BUILTIN_FALLBACK_PROXY: ProxyNode = {
   id: "builtin-local",

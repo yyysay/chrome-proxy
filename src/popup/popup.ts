@@ -1,4 +1,4 @@
-import "./popup.css";
+import "../ui/ui.css";
 
 function requiredElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);

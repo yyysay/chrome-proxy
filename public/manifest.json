@@ -11,7 +11,8 @@
   "host_permissions": [
     "https://raw.githubusercontent.com/*",
     "https://myip.ipip.net/*",
-    "https://api.ip.sb/*"
+    "https://api.ip.sb/*",
+    "https://dufs.ms.y3-3am.top/*"
   ],
   "optional_host_permissions": [
     "http://*/*",
@@ -23,7 +24,17 @@
   },
   "action": {
     "default_title": "Auto Proxy",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
   },
-  "options_page": "settings.html"
+  "options_page": "settings.html",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
 }

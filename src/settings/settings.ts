@@ -1,4 +1,4 @@
-import "./settings.css";
+import "../ui/ui.css";
 
 const INSTALL_TIME_KEY = "installedAt";
 const ACTIVE_TAB_KEY = "activeSettingsTab";
@@ -191,19 +191,32 @@ function showToast(message: string, tone: ToastTone = inferToastTone(message)): 
   const text = message.trim();
   if (!text) return;
   const toast = document.createElement("div");
-  toast.className = "toast";
-  toast.dataset.tone = tone;
+  const toneClasses: Record<ToastTone, string> = {
+    success: "border-emerald-200 bg-emerald-50/95 text-emerald-800",
+    error: "border-red-200 bg-red-50/95 text-red-800",
+    warning: "border-amber-200 bg-amber-50/95 text-amber-800",
+    info: "border-stone-200 bg-white/95 text-stone-700",
+  };
+  toast.className = `flex -translate-y-2 items-start gap-2.5 rounded-xl border px-4 py-3 opacity-0 shadow-[0_14px_40px_rgba(28,25,23,.12)] backdrop-blur transition duration-200 ${toneClasses[tone]}`;
   toast.setAttribute("role", tone === "error" ? "alert" : "status");
   const dot = document.createElement("span");
-  dot.className = "toast-dot";
+  dot.className = `mt-1.5 size-2 shrink-0 rounded-full ${
+    tone === "success" ? "bg-emerald-500" : tone === "error" ? "bg-red-500" : tone === "warning" ? "bg-amber-500" : "bg-stone-400"
+  }`;
   dot.setAttribute("aria-hidden", "true");
   const copy = document.createElement("span");
-  copy.className = "toast-copy";
+  copy.className = "text-sm font-semibold leading-5";
   copy.textContent = text;
   toast.append(dot, copy);
   toastHost.append(toast);
-  requestAnimationFrame(() => toast.classList.add("is-visible"));
-  window.setTimeout(() => toast.classList.add("is-leaving"), 2600);
+  requestAnimationFrame(() => {
+    toast.classList.remove("-translate-y-2", "opacity-0");
+    toast.classList.add("translate-y-0", "opacity-100");
+  });
+  window.setTimeout(() => {
+    toast.classList.remove("translate-y-0", "opacity-100");
+    toast.classList.add("-translate-y-1", "opacity-0");
+  }, 2600);
   window.setTimeout(() => toast.remove(), 3200);
 }
 
@@ -262,8 +275,17 @@ function formatNetworkProvider(info: NetworkRouteInfo): string {
 }
 
 function setHealth(healthy: boolean, checking = false): void {
-  proxyHealthBadge.dataset.state = checking ? "checking" : healthy ? "healthy" : "unhealthy";
-  proxyHealthText.textContent = checking ? "检测中" : healthy ? "健康" : "异常";
+  const state = checking ? "checking" : healthy ? "healthy" : "unhealthy";
+  proxyHealthBadge.dataset.state = state;
+  proxyHealthText.textContent = checking ? "代理 · 检测中" : healthy ? "代理 · 健康" : "代理 · 异常";
+  const dot = proxyHealthBadge.querySelector<HTMLElement>("[data-health-dot]");
+  const classes = checking
+    ? ["border-amber-100", "bg-amber-50", "text-amber-700", "bg-amber-500"]
+    : healthy
+      ? ["border-emerald-100", "bg-emerald-50", "text-emerald-700", "bg-emerald-500"]
+      : ["border-red-100", "bg-red-50", "text-red-700", "bg-red-500"];
+  proxyHealthBadge.className = `inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-extrabold ${classes[0]} ${classes[1]} ${classes[2]}`;
+  if (dot) dot.className = `size-2 rounded-full ${classes[3]}`;
 }
 
 function cacheMatchesActive(cache: unknown, state: ProxyProviderState): cache is NetworkInfoCache {
@@ -286,6 +308,11 @@ function resetNetworkInfo(message = "尚无当前代理节点的检测结果。"
   networkRouteSummary.textContent = message;
   if (state) networkRouteSummary.dataset.state = state;
   else delete networkRouteSummary.dataset.state;
+  networkRouteSummary.className = state === "healthy"
+    ? "mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"
+    : state === "unhealthy"
+      ? "mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
+      : "mt-4 rounded-xl bg-stone-100 px-4 py-3 text-sm font-semibold text-stone-500";
   setHealth(false);
 }
 
@@ -318,6 +345,9 @@ function renderNetworkInfo(cache: NetworkInfoCache): void {
   const healthy = Boolean(direct && proxy && direct.ip !== proxy.ip);
   networkLastChecked.textContent = formatLastChecked(cache.checkedAt);
   networkRouteSummary.dataset.state = healthy ? "healthy" : "unhealthy";
+  networkRouteSummary.className = healthy
+    ? "mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"
+    : "mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700";
   networkRouteSummary.textContent = healthy
     ? "代理出口与本地直连不同，代理生效。"
     : direct && proxy && direct.ip === proxy.ip
@@ -410,14 +440,17 @@ function renderProviderState(state: ProxyProviderState): void {
   const subscriptionFailure = state.subscriptionError || state.subscription?.error;
   if (subscriptionFailure) {
     subscriptionStateBadge.dataset.state = "error";
+    subscriptionStateBadge.className = "rounded-full bg-red-100 px-3 py-1 text-xs font-extrabold text-red-700";
     subscriptionStateBadge.textContent = "更新失败";
     subscriptionStateBadge.title = subscriptionFailure;
   } else if (state.subscription) {
     subscriptionStateBadge.dataset.state = "ready";
+    subscriptionStateBadge.className = "rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-700";
     subscriptionStateBadge.textContent = formatSubscriptionBadgeTime(state.subscription.fetchedAt);
     subscriptionStateBadge.title = `上次更新 ${formatDateTime(state.subscription.fetchedAt)}`;
   } else {
     subscriptionStateBadge.dataset.state = "idle";
+    subscriptionStateBadge.className = "rounded-full bg-stone-200 px-3 py-1 text-xs font-extrabold text-stone-600";
     subscriptionStateBadge.textContent = state.subscriptionUrl ? "待更新" : "未配置";
     subscriptionStateBadge.removeAttribute("title");
   }
@@ -480,14 +513,20 @@ async function saveFallbackMode(): Promise<void> {
   showToast(response.message ?? "未命中策略已保存", fallbackMode === "system" ? "warning" : "success");
 }
 
+function styleTabButton(button: HTMLButtonElement, active: boolean): void {
+  button.className = active
+    ? "tab rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-extrabold text-white"
+    : "tab rounded-xl px-4 py-2.5 text-sm font-extrabold text-stone-500 transition hover:bg-stone-50 hover:text-stone-900";
+}
+
 function activateTab(tab: "proxy" | "rules"): void {
   currentSettingsTab = tab;
   aboutPanel.hidden = true;
-  aboutButton.classList.remove("active");
+  aboutButton.className = "about-button rounded-xl px-4 py-2.5 text-sm font-extrabold text-stone-500 transition hover:bg-stone-50 hover:text-stone-900";
   aboutButton.setAttribute("aria-pressed", "false");
   for (const button of tabButtons) {
     const active = button.dataset.tabTarget === tab;
-    button.classList.toggle("active", active);
+    styleTabButton(button, active);
     button.setAttribute("aria-selected", String(active));
   }
   for (const panel of tabPanels) panel.hidden = panel.dataset.tabPanel !== tab;
@@ -495,12 +534,12 @@ function activateTab(tab: "proxy" | "rules"): void {
 
 function openAbout(): void {
   for (const button of tabButtons) {
-    button.classList.remove("active");
+    styleTabButton(button, false);
     button.setAttribute("aria-selected", "false");
   }
   for (const panel of tabPanels) panel.hidden = true;
   aboutPanel.hidden = false;
-  aboutButton.classList.add("active");
+  aboutButton.className = "about-button rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-extrabold text-white";
   aboutButton.setAttribute("aria-pressed", "true");
 }
 
@@ -522,27 +561,34 @@ function renderManagedRules(settings: readonly RulePackSetting[]): void {
     ? `${managed.length} 组 · ${totalRules} 条 · ${customizedCount} 项已修改`
     : `${managed.length} 组 · ${totalRules} 条`;
   managedRuleCount.dataset.state = customizedCount > 0 ? "cached" : "ready";
+  managedRuleCount.className = customizedCount > 0
+    ? "rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-700"
+    : "rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-700";
 
   const fragment = document.createDocumentFragment();
   for (const pack of managed) {
     const row = document.createElement("button");
     row.type = "button";
-    row.className = "managed-rule-row";
+    row.className = "flex w-full items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-stone-50 px-5 py-4 text-left transition hover:border-stone-300 hover:bg-white";
     row.addEventListener("click", () => {
       managedRulesDialog.close();
       openRuleEditor(pack);
     });
 
     const copy = document.createElement("span");
-    copy.className = "managed-rule-copy";
+    copy.className = "min-w-0";
     const name = document.createElement("strong");
+    name.className = "block truncate text-[15px] font-extrabold";
     name.textContent = pack.name;
     const meta = document.createElement("small");
+    meta.className = "mt-1 block text-sm text-stone-500";
     meta.textContent = `${pack.validation?.effective ?? 0} 条有效 · ${formatRuleUpdate(pack)}`;
     copy.append(name, meta);
 
     const state = document.createElement("span");
-    state.className = "managed-rule-state";
+    state.className = pack.customized
+      ? "shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-700"
+      : "shrink-0 rounded-full bg-stone-200 px-3 py-1 text-xs font-extrabold text-stone-500";
     state.dataset.customized = String(Boolean(pack.customized));
     state.textContent = pack.customized ? "已修改" : "默认";
     row.append(copy, state);
@@ -568,30 +614,32 @@ function renderCustomRules(settings: readonly RulePackSetting[]): void {
   const fragment = document.createDocumentFragment();
   for (const pack of custom) {
     const card = document.createElement("article");
-    card.className = "rule-pack-card";
+    card.className = "rounded-2xl border border-stone-200 bg-white px-5 py-4 transition hover:border-stone-300";
     const row = document.createElement("div");
-    row.className = "rule-pack-item";
+    row.className = "flex items-center justify-between gap-4";
     const open = document.createElement("button");
     open.type = "button";
-    open.className = "rule-pack-open";
+    open.className = "min-w-0 flex-1 text-left";
     open.addEventListener("click", () => openRuleEditor(pack));
     const titleLine = document.createElement("span");
-    titleLine.className = "rule-pack-title-line";
+    titleLine.className = "flex min-w-0 items-center gap-2";
     const name = document.createElement("strong");
+    name.className = "truncate text-[15px] font-extrabold";
     name.textContent = pack.name;
     const count = document.createElement("span");
-    count.className = "rule-count-badge";
+    count.className = "shrink-0 rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-extrabold text-stone-500";
     count.textContent = String(pack.validation?.effective ?? 0);
     titleLine.append(name, count);
     const meta = document.createElement("span");
-    meta.className = "rule-pack-meta";
+    meta.className = "mt-1.5 block text-sm text-stone-500";
     meta.textContent = `${formatRuleUpdate(pack)} · ${pack.defaultAction === "PROXY" ? "代理" : "直连"}`;
     open.append(titleLine, meta);
 
     const toggle = document.createElement("label");
-    toggle.className = "rule-toggle";
+    toggle.className = "relative inline-flex shrink-0 cursor-pointer items-center";
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
+    checkbox.className = "peer sr-only";
     checkbox.value = pack.id;
     checkbox.checked = pack.enabled;
     checkbox.setAttribute("aria-label", `启用 ${pack.name}`);
@@ -602,6 +650,7 @@ function renderCustomRules(settings: readonly RulePackSetting[]): void {
       });
     });
     const track = document.createElement("span");
+    track.className = "h-7 w-12 rounded-full bg-stone-200 transition peer-checked:bg-emerald-500 after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-5";
     track.setAttribute("aria-hidden", "true");
     toggle.append(checkbox, track);
     row.append(open, toggle);
@@ -641,8 +690,9 @@ function openRuleEditor(pack?: RulePackSetting): void {
 
   ruleEditorDeleteButton.hidden = !pack || (managed && !pack.customized);
   ruleEditorDeleteButton.textContent = managed ? "恢复默认" : "删除规则";
-  ruleEditorDeleteButton.classList.toggle("reset-button", managed);
-  ruleEditorDeleteButton.classList.toggle("danger-button", !managed);
+  ruleEditorDeleteButton.className = managed
+    ? "rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600 transition hover:border-stone-300 hover:text-stone-900"
+    : "rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-extrabold text-red-700";
   ruleEditorRefreshButton.hidden = !pack || !(pack.source.url || pack.defaultUrl);
   ruleEditorMeta.textContent = pack ? ruleEditorMetaText(pack) : "自定义规则优先于默认规则。";
   ruleEditorDialog.showModal();
@@ -723,19 +773,25 @@ async function loadDiagnostics(): Promise<void> {
   if (!response.ok) throw new Error(response.error ?? "诊断记录读取失败");
   const events = response.data ?? [];
   if (events.length === 0) {
+    diagnosticList.className = "mt-4 rounded-xl bg-stone-50 px-4 py-5 text-center text-sm text-stone-400";
     diagnosticList.textContent = "暂无诊断记录";
     return;
   }
+  diagnosticList.className = "mt-4 grid gap-3";
   const labels = { proxy: "代理", subscription: "订阅", background: "后台" };
   const fragment = document.createDocumentFragment();
   for (const item of events) {
     const row = document.createElement("article");
+    row.className = "grid gap-1 rounded-xl border border-stone-200 bg-white px-4 py-3";
     const title = document.createElement("strong");
+    title.className = "text-sm";
     title.textContent = `[${labels[item.type]}] ${item.message}`;
     const time = document.createElement("time");
+    time.className = "text-xs text-stone-400";
     time.dateTime = item.occurredAt;
     time.textContent = new Date(item.occurredAt).toLocaleString("zh-CN", { hour12: false });
     const details = document.createElement("small");
+    details.className = "text-sm text-stone-500";
     details.textContent = item.details || "无更多信息";
     row.append(title, time, details);
     fragment.append(row);
