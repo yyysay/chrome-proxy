@@ -6,6 +6,7 @@ const AUTO_REFRESH_ENABLED_KEY = "autoRuleRefreshEnabled";
 const AUTO_REFRESH_INTERVAL_KEY = "autoRuleRefreshIntervalHours";
 const NETWORK_INFO_CACHE_KEY = "networkInfoCache";
 const FALLBACK_MODE_KEY = "fallbackMode";
+const PROXY_REFRESH_INTERVAL_KEY = "proxySubscriptionRefreshIntervalHours";
 
 type SourceStrategy = "local-first" | "subscription-first" | "merge";
 type ProxySourceMode = "subscription" | "manual";
@@ -66,7 +67,6 @@ interface RulePackSetting {
 
 interface NetworkRouteInfo {
   ip: string;
-  requestMs: number;
   country?: string;
   countryCode?: string;
   region?: string;
@@ -108,31 +108,40 @@ function requiredElement<T extends Element>(selector: string): T {
 
 const proxyHealthBadge = requiredElement<HTMLElement>("#proxy-health-badge");
 const proxyHealthText = requiredElement<HTMLElement>("#proxy-health-text");
-const subscriptionRadio = requiredElement<HTMLInputElement>("#proxy-source-subscription");
-const manualRadio = requiredElement<HTMLInputElement>("#proxy-source-manual");
+const openProxySourcePickerButton = requiredElement<HTMLButtonElement>("#open-proxy-source-picker");
+const proxySourceValue = requiredElement<HTMLElement>("#proxy-source-value");
+const proxySourceSettingsTitle = requiredElement<HTMLElement>("#proxy-source-settings-title");
+const proxySourceSettingsDetail = requiredElement<HTMLElement>("#proxy-source-settings-detail");
+const proxySourcePickerDialog = requiredElement<HTMLDialogElement>("#proxy-source-picker-dialog");
+const proxySourcePickerCloseButton = requiredElement<HTMLButtonElement>("#proxy-source-picker-close");
+const proxySourceOptionButtons = Array.from(
+  document.querySelectorAll<HTMLButtonElement>("[data-proxy-source-option]"),
+);
+const proxySourceCheckmarks = Array.from(
+  document.querySelectorAll<SVGElement>("[data-proxy-source-check]"),
+);
 const subscriptionSettings = requiredElement<HTMLElement>("#subscription-settings");
 const manualSettings = requiredElement<HTMLElement>("#manual-settings");
 const subscriptionForm = requiredElement<HTMLFormElement>("#subscription-form");
 const subscriptionUrlInput = requiredElement<HTMLInputElement>("#subscription-url");
 const subscriptionStateBadge = requiredElement<HTMLElement>("#subscription-state-badge");
-const subscriptionMeta = requiredElement<HTMLElement>("#subscription-meta");
 const refreshProxySubscriptionButton = requiredElement<HTMLButtonElement>("#refresh-proxy-subscription");
 const manualProxyForm = requiredElement<HTMLFormElement>("#manual-proxy-form");
 const manualHostInput = requiredElement<HTMLInputElement>("#manual-proxy-host");
 const manualPortInput = requiredElement<HTMLInputElement>("#manual-proxy-port");
-const activeProxyTitle = requiredElement<HTMLElement>("#active-proxy-title");
-const activeProxyEndpoint = requiredElement<HTMLElement>("#active-proxy-endpoint");
+const proxyEditorDialog = requiredElement<HTMLDialogElement>("#proxy-editor-dialog");
+const proxyEditorTitle = requiredElement<HTMLElement>("#proxy-editor-title");
+const proxyEditorCloseButton = requiredElement<HTMLButtonElement>("#proxy-editor-close");
+const openProxyEditorButton = requiredElement<HTMLButtonElement>("#open-proxy-editor");
+const proxyRefreshInterval = requiredElement<HTMLSelectElement>("#proxy-refresh-interval");
 const refreshNetworkInfoButton = requiredElement<HTMLButtonElement>("#refresh-network-info");
 const networkLastChecked = requiredElement<HTMLElement>("#network-last-checked");
-const networkRouteSummary = requiredElement<HTMLElement>("#network-route-summary");
 const directExitIp = requiredElement<HTMLElement>("#direct-exit-ip");
 const directExitLocation = requiredElement<HTMLElement>("#direct-exit-location");
 const directExitNetwork = requiredElement<HTMLElement>("#direct-exit-network");
-const directExitTime = requiredElement<HTMLElement>("#direct-exit-time");
 const proxyExitIp = requiredElement<HTMLElement>("#proxy-exit-ip");
 const proxyExitLocation = requiredElement<HTMLElement>("#proxy-exit-location");
 const proxyExitNetwork = requiredElement<HTMLElement>("#proxy-exit-network");
-const proxyExitTime = requiredElement<HTMLElement>("#proxy-exit-time");
 const managedRuleCount = requiredElement<HTMLElement>("#managed-rule-count");
 const managedRuleList = requiredElement<HTMLElement>("#managed-rule-list");
 const manageManagedRulesButton = requiredElement<HTMLButtonElement>("#manage-managed-rules");
@@ -177,6 +186,7 @@ let providerState: ProxyProviderState | undefined;
 let rulePackSettings: RulePackSetting[] = [];
 let editingRulePack: RulePackSetting | null = null;
 let currentSettingsTab: "proxy" | "rules" = "proxy";
+let pendingProxySourceMode: ProxySourceMode | undefined;
 
 versionElement.textContent = chrome.runtime.getManifest().version;
 
@@ -192,16 +202,16 @@ function showToast(message: string, tone: ToastTone = inferToastTone(message)): 
   if (!text) return;
   const toast = document.createElement("div");
   const toneClasses: Record<ToastTone, string> = {
-    success: "border-emerald-200 bg-emerald-50/95 text-emerald-800",
-    error: "border-red-200 bg-red-50/95 text-red-800",
-    warning: "border-amber-200 bg-amber-50/95 text-amber-800",
-    info: "border-stone-200 bg-white/95 text-stone-700",
+    success: "border-emerald-200 bg-emerald-50/95 text-emerald-800 dark:border-[#30d158]/35 dark:bg-[#203329]/95 dark:text-[#30d158]",
+    error: "border-red-200 bg-red-50/95 text-red-800 dark:border-[#ff453a]/40 dark:bg-[#3a2424]/95 dark:text-[#ff6961]",
+    warning: "border-amber-200 bg-amber-50/95 text-amber-800 dark:border-[#ff9f0a]/40 dark:bg-[#392e1f]/95 dark:text-[#ff9f0a]",
+    info: "border-stone-200 bg-white/95 text-stone-700 dark:border-white/15 dark:bg-[#2c2c2e]/95 dark:text-white/80",
   };
   toast.className = `flex -translate-y-2 items-start gap-2.5 rounded-xl border px-4 py-3 opacity-0 shadow-[0_14px_40px_rgba(28,25,23,.12)] backdrop-blur transition duration-200 ${toneClasses[tone]}`;
   toast.setAttribute("role", tone === "error" ? "alert" : "status");
   const dot = document.createElement("span");
   dot.className = `mt-1.5 size-2 shrink-0 rounded-full ${
-    tone === "success" ? "bg-emerald-500" : tone === "error" ? "bg-red-500" : tone === "warning" ? "bg-amber-500" : "bg-stone-400"
+    tone === "success" ? "bg-emerald-500 dark:bg-[#30d158]" : tone === "error" ? "bg-red-500 dark:bg-[#ff453a]" : tone === "warning" ? "bg-amber-500 dark:bg-[#ff9f0a]" : "bg-stone-400 dark:bg-white/45"
   }`;
   dot.setAttribute("aria-hidden", "true");
   const copy = document.createElement("span");
@@ -222,10 +232,6 @@ function showToast(message: string, tone: ToastTone = inferToastTone(message)): 
 
 async function sendMessage<T>(message: object): Promise<RuntimeResponse<T>> {
   return chrome.runtime.sendMessage(message) as Promise<RuntimeResponse<T>>;
-}
-
-function endpoint(node: ProxyNode): string {
-  return `http://${node.host}:${node.port}`;
 }
 
 function endpointChanged(before: ProxyProviderState | undefined, after: ProxyProviderState): boolean {
@@ -277,13 +283,13 @@ function formatNetworkProvider(info: NetworkRouteInfo): string {
 function setHealth(healthy: boolean, checking = false): void {
   const state = checking ? "checking" : healthy ? "healthy" : "unhealthy";
   proxyHealthBadge.dataset.state = state;
-  proxyHealthText.textContent = checking ? "代理 · 检测中" : healthy ? "代理 · 健康" : "代理 · 异常";
+  proxyHealthText.textContent = checking ? "代理检测中" : healthy ? "代理健康" : "代理异常";
   const dot = proxyHealthBadge.querySelector<HTMLElement>("[data-health-dot]");
   const classes = checking
-    ? ["border-amber-100", "bg-amber-50", "text-amber-700", "bg-amber-500"]
+    ? ["border-amber-100 dark:border-[#ff9f0a]/40", "bg-amber-50 dark:bg-[#ff9f0a]/15", "text-amber-700 dark:text-[#ff9f0a]", "bg-amber-500 dark:bg-[#ff9f0a]"]
     : healthy
-      ? ["border-emerald-100", "bg-emerald-50", "text-emerald-700", "bg-emerald-500"]
-      : ["border-red-100", "bg-red-50", "text-red-700", "bg-red-500"];
+      ? ["border-emerald-100 dark:border-[#30d158]/35", "bg-emerald-50 dark:bg-[#30d158]/15", "text-emerald-700 dark:text-[#30d158]", "bg-emerald-500 dark:bg-[#30d158]"]
+      : ["border-red-100 dark:border-[#ff453a]/40", "bg-red-50 dark:bg-[#ff453a]/15", "text-red-700 dark:text-[#ff453a]", "bg-red-500 dark:bg-[#ff453a]"];
   proxyHealthBadge.className = `inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-extrabold ${classes[0]} ${classes[1]} ${classes[2]}`;
   if (dot) dot.className = `size-2 rounded-full ${classes[3]}`;
 }
@@ -295,24 +301,14 @@ function cacheMatchesActive(cache: unknown, state: ProxyProviderState): cache is
     typeof value.checkedAt === "string";
 }
 
-function resetNetworkInfo(message = "尚无当前代理节点的检测结果。", state: "healthy" | "unhealthy" | undefined = undefined): void {
+function resetNetworkInfo(): void {
   directExitIp.textContent = "—";
   directExitLocation.textContent = "—";
   directExitNetwork.textContent = "—";
-  directExitTime.textContent = "";
   proxyExitIp.textContent = "—";
   proxyExitLocation.textContent = "—";
   proxyExitNetwork.textContent = "—";
-  proxyExitTime.textContent = "";
   networkLastChecked.textContent = "尚未检测";
-  networkRouteSummary.textContent = message;
-  if (state) networkRouteSummary.dataset.state = state;
-  else delete networkRouteSummary.dataset.state;
-  networkRouteSummary.className = state === "healthy"
-    ? "mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"
-    : state === "unhealthy"
-      ? "mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
-      : "mt-4 rounded-xl bg-stone-100 px-4 py-3 text-sm font-semibold text-stone-500";
   setHealth(false);
 }
 
@@ -323,36 +319,23 @@ function renderNetworkInfo(cache: NetworkInfoCache): void {
     directExitIp.textContent = direct.ip;
     directExitLocation.textContent = formatNetworkLocation(direct);
     directExitNetwork.textContent = formatNetworkProvider(direct);
-    directExitTime.textContent = `请求 ${direct.requestMs} ms`;
   } else {
     directExitIp.textContent = "获取失败";
     directExitLocation.textContent = cache.directError || "—";
     directExitNetwork.textContent = "—";
-    directExitTime.textContent = "";
   }
   if (proxy) {
     proxyExitIp.textContent = proxy.ip;
     proxyExitLocation.textContent = formatNetworkLocation(proxy);
     proxyExitNetwork.textContent = formatNetworkProvider(proxy);
-    proxyExitTime.textContent = `请求 ${proxy.requestMs} ms`;
   } else {
     proxyExitIp.textContent = "获取失败";
     proxyExitLocation.textContent = cache.proxyError || "—";
     proxyExitNetwork.textContent = "—";
-    proxyExitTime.textContent = "";
   }
 
   const healthy = Boolean(direct && proxy && direct.ip !== proxy.ip);
   networkLastChecked.textContent = formatLastChecked(cache.checkedAt);
-  networkRouteSummary.dataset.state = healthy ? "healthy" : "unhealthy";
-  networkRouteSummary.className = healthy
-    ? "mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"
-    : "mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700";
-  networkRouteSummary.textContent = healthy
-    ? "代理出口与本地直连不同，代理生效。"
-    : direct && proxy && direct.ip === proxy.ip
-      ? "代理出口与本地直连相同，判定为异常。"
-      : "未能同时取得两个出口 IP，判定为异常。";
   setHealth(healthy);
 }
 
@@ -360,7 +343,7 @@ async function restoreNetworkInfoForState(state: ProxyProviderState): Promise<vo
   const stored = await chrome.storage.local.get(NETWORK_INFO_CACHE_KEY);
   const cache = stored[NETWORK_INFO_CACHE_KEY] as unknown;
   if (cacheMatchesActive(cache, state)) renderNetworkInfo(cache);
-  else resetNetworkInfo("尚无当前代理节点的检测结果；节点变化后会自动检测，也可以手动刷新。");
+  else resetNetworkInfo();
 }
 
 async function saveNetworkCache(cache: NetworkInfoCache): Promise<void> {
@@ -425,12 +408,23 @@ async function refreshNetworkInfo(showProgressToast = true): Promise<void> {
 
 function renderProviderState(state: ProxyProviderState): void {
   providerState = state;
-  subscriptionRadio.checked = state.sourceMode === "subscription";
-  manualRadio.checked = state.sourceMode === "manual";
+  proxySourceValue.textContent = state.sourceMode === "subscription" ? "代理订阅" : "手动代理";
+  proxySourceSettingsTitle.textContent = state.sourceMode === "subscription" ? "订阅设置" : "手动代理设置";
   subscriptionSettings.hidden = state.sourceMode !== "subscription";
   manualSettings.hidden = state.sourceMode !== "manual";
   subscriptionUrlInput.value = state.subscriptionUrl;
   refreshProxySubscriptionButton.disabled = !state.subscriptionUrl;
+  proxySourceSettingsDetail.textContent = state.sourceMode === "subscription"
+    ? state.subscription
+      ? `上次更新 ${formatSubscriptionBadgeTime(state.subscription.fetchedAt)}`
+      : state.subscriptionError ? "更新失败，请检查订阅" : "订阅尚未更新"
+    : state.manualOverride
+      ? `${state.manualOverride.host}:${state.manualOverride.port}`
+      : "手动代理尚未配置";
+  for (const checkmark of proxySourceCheckmarks) {
+    if (checkmark.dataset.proxySourceCheck === state.sourceMode) checkmark.removeAttribute("hidden");
+    else checkmark.setAttribute("hidden", "");
+  }
 
   if (state.manualOverride) {
     manualHostInput.value = state.manualOverride.host;
@@ -440,48 +434,36 @@ function renderProviderState(state: ProxyProviderState): void {
   const subscriptionFailure = state.subscriptionError || state.subscription?.error;
   if (subscriptionFailure) {
     subscriptionStateBadge.dataset.state = "error";
-    subscriptionStateBadge.className = "rounded-full bg-red-100 px-3 py-1 text-xs font-extrabold text-red-700";
+    subscriptionStateBadge.className = "rounded-full bg-red-100 px-3 py-1 text-xs font-extrabold text-red-700 dark:bg-[#ff453a]/15 dark:text-[#ff453a]";
     subscriptionStateBadge.textContent = "更新失败";
     subscriptionStateBadge.title = subscriptionFailure;
   } else if (state.subscription) {
     subscriptionStateBadge.dataset.state = "ready";
-    subscriptionStateBadge.className = "rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-700";
+    subscriptionStateBadge.className = "rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-700 dark:bg-[#30d158]/15 dark:text-[#30d158]";
     subscriptionStateBadge.textContent = formatSubscriptionBadgeTime(state.subscription.fetchedAt);
     subscriptionStateBadge.title = `上次更新 ${formatDateTime(state.subscription.fetchedAt)}`;
   } else {
     subscriptionStateBadge.dataset.state = "idle";
-    subscriptionStateBadge.className = "rounded-full bg-stone-200 px-3 py-1 text-xs font-extrabold text-stone-600";
+    subscriptionStateBadge.className = "rounded-full bg-stone-200 px-3 py-1 text-xs font-extrabold text-stone-600 dark:bg-white/10 dark:text-white/65";
     subscriptionStateBadge.textContent = state.subscriptionUrl ? "待更新" : "未配置";
     subscriptionStateBadge.removeAttribute("title");
   }
 
-  if (state.subscription) {
-    const first = state.subscription.document.proxies[0];
-    subscriptionMeta.textContent = subscriptionFailure
-      ? `${first.name} · ${endpoint(first)} · 上次成功 ${formatDateTime(state.subscription.fetchedAt)}`
-      : `${first.name} · ${endpoint(first)}`;
-  } else if (state.subscriptionError) {
-    subscriptionMeta.textContent = state.subscriptionError;
-  } else if (!state.subscriptionUrl) {
-    subscriptionMeta.textContent = "未配置订阅时使用内置 127.0.0.1:7890 兜底。";
-  } else {
-    subscriptionMeta.textContent = "尚未加载订阅。";
-  }
-
-  const sourceLabels: Record<EffectiveProxySource, string> = {
-    subscription: "代理订阅",
-    manual: "手动覆盖",
-    fallback: "内置兜底",
-  };
-  activeProxyTitle.textContent = `${state.activeProxy.name} · ${sourceLabels[state.effectiveSource]}`;
-  activeProxyEndpoint.textContent = endpoint(state.activeProxy);
 }
 
-async function applyProviderState(state: ProxyProviderState, autoDetectOnEndpointChange: boolean): Promise<void> {
-  const changed = endpointChanged(providerState, state);
+function openProxyEditor(mode: ProxySourceMode): void {
+  subscriptionSettings.hidden = mode !== "subscription";
+  manualSettings.hidden = mode !== "manual";
+  proxyEditorTitle.textContent = mode === "subscription" ? "编辑代理订阅" : "编辑手动代理";
+  proxyEditorDialog.showModal();
+  if (mode === "subscription") subscriptionUrlInput.focus();
+  else manualHostInput.focus();
+}
+
+async function applyProviderState(state: ProxyProviderState, autoDetect: boolean): Promise<void> {
   renderProviderState(state);
   await restoreNetworkInfoForState(state);
-  if (changed && autoDetectOnEndpointChange) void refreshNetworkInfo(false);
+  if (autoDetect) void refreshNetworkInfo(false);
 }
 
 async function requestUrlPermission(url: string): Promise<void> {
@@ -515,14 +497,14 @@ async function saveFallbackMode(): Promise<void> {
 
 function styleTabButton(button: HTMLButtonElement, active: boolean): void {
   button.className = active
-    ? "tab rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-extrabold text-white"
-    : "tab rounded-xl px-4 py-2.5 text-sm font-extrabold text-stone-500 transition hover:bg-stone-50 hover:text-stone-900";
+    ? "tab inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-extrabold text-emerald-700 ring-1 ring-emerald-100 dark:bg-[#0a84ff]/15 dark:text-[#64d2ff] dark:ring-[#0a84ff]/30"
+    : "tab inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-extrabold text-stone-500 transition hover:bg-stone-50 hover:text-stone-900 dark:text-white/65 dark:hover:bg-white/8 dark:hover:text-white";
 }
 
 function activateTab(tab: "proxy" | "rules"): void {
   currentSettingsTab = tab;
   aboutPanel.hidden = true;
-  aboutButton.className = "about-button rounded-xl px-4 py-2.5 text-sm font-extrabold text-stone-500 transition hover:bg-stone-50 hover:text-stone-900";
+  aboutButton.className = "about-button inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-extrabold text-stone-500 transition hover:bg-stone-50 hover:text-stone-900 dark:text-white/65 dark:hover:bg-white/8 dark:hover:text-white";
   aboutButton.setAttribute("aria-pressed", "false");
   for (const button of tabButtons) {
     const active = button.dataset.tabTarget === tab;
@@ -539,7 +521,7 @@ function openAbout(): void {
   }
   for (const panel of tabPanels) panel.hidden = true;
   aboutPanel.hidden = false;
-  aboutButton.className = "about-button rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-extrabold text-white";
+  aboutButton.className = "about-button inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-extrabold text-emerald-700 ring-1 ring-emerald-100 dark:bg-[#0a84ff]/15 dark:text-[#64d2ff] dark:ring-[#0a84ff]/30";
   aboutButton.setAttribute("aria-pressed", "true");
 }
 
@@ -562,14 +544,14 @@ function renderManagedRules(settings: readonly RulePackSetting[]): void {
     : `${managed.length} 组 · ${totalRules} 条`;
   managedRuleCount.dataset.state = customizedCount > 0 ? "cached" : "ready";
   managedRuleCount.className = customizedCount > 0
-    ? "rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-700"
-    : "rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-700";
+    ? "rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-700 dark:bg-[#ff9f0a]/15 dark:text-[#ff9f0a]"
+    : "rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-700 dark:bg-[#30d158]/15 dark:text-[#30d158]";
 
   const fragment = document.createDocumentFragment();
   for (const pack of managed) {
     const row = document.createElement("button");
     row.type = "button";
-    row.className = "flex w-full items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-stone-50 px-5 py-4 text-left transition hover:border-stone-300 hover:bg-white";
+    row.className = "flex w-full items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-stone-50 px-5 py-4 text-left transition hover:border-stone-300 hover:bg-white dark:border-white/10 dark:bg-[#242426] dark:hover:border-white/25 dark:hover:bg-[#323235]";
     row.addEventListener("click", () => {
       managedRulesDialog.close();
       openRuleEditor(pack);
@@ -581,14 +563,14 @@ function renderManagedRules(settings: readonly RulePackSetting[]): void {
     name.className = "block truncate text-[15px] font-extrabold";
     name.textContent = pack.name;
     const meta = document.createElement("small");
-    meta.className = "mt-1 block text-sm text-stone-500";
+    meta.className = "mt-1 block text-sm text-stone-500 dark:text-white/65";
     meta.textContent = `${pack.validation?.effective ?? 0} 条有效 · ${formatRuleUpdate(pack)}`;
     copy.append(name, meta);
 
     const state = document.createElement("span");
     state.className = pack.customized
-      ? "shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-700"
-      : "shrink-0 rounded-full bg-stone-200 px-3 py-1 text-xs font-extrabold text-stone-500";
+      ? "shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-700 dark:bg-[#ff9f0a]/15 dark:text-[#ff9f0a]"
+      : "shrink-0 rounded-full bg-stone-200 px-3 py-1 text-xs font-extrabold text-stone-500 dark:bg-white/10 dark:text-white/55";
     state.dataset.customized = String(Boolean(pack.customized));
     state.textContent = pack.customized ? "已修改" : "默认";
     row.append(copy, state);
@@ -614,7 +596,7 @@ function renderCustomRules(settings: readonly RulePackSetting[]): void {
   const fragment = document.createDocumentFragment();
   for (const pack of custom) {
     const card = document.createElement("article");
-    card.className = "rounded-2xl border border-stone-200 bg-white px-5 py-4 transition hover:border-stone-300";
+    card.className = "rounded-2xl border border-stone-200 bg-white px-5 py-4 transition hover:border-stone-300 dark:border-white/10 dark:bg-[#242426] dark:hover:border-white/25";
     const row = document.createElement("div");
     row.className = "flex items-center justify-between gap-4";
     const open = document.createElement("button");
@@ -627,11 +609,11 @@ function renderCustomRules(settings: readonly RulePackSetting[]): void {
     name.className = "truncate text-[15px] font-extrabold";
     name.textContent = pack.name;
     const count = document.createElement("span");
-    count.className = "shrink-0 rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-extrabold text-stone-500";
+    count.className = "shrink-0 rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-extrabold text-stone-500 dark:bg-white/10 dark:text-white/55";
     count.textContent = String(pack.validation?.effective ?? 0);
     titleLine.append(name, count);
     const meta = document.createElement("span");
-    meta.className = "mt-1.5 block text-sm text-stone-500";
+    meta.className = "mt-1.5 block text-sm text-stone-500 dark:text-white/65";
     meta.textContent = `${formatRuleUpdate(pack)} · ${pack.defaultAction === "PROXY" ? "代理" : "直连"}`;
     open.append(titleLine, meta);
 
@@ -650,7 +632,7 @@ function renderCustomRules(settings: readonly RulePackSetting[]): void {
       });
     });
     const track = document.createElement("span");
-    track.className = "h-7 w-12 rounded-full bg-stone-200 transition peer-checked:bg-emerald-500 after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-5";
+    track.className = "h-7 w-12 rounded-full bg-stone-200 transition peer-checked:bg-emerald-500 after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-5 dark:bg-white/15 dark:peer-checked:bg-[#30d158]";
     track.setAttribute("aria-hidden", "true");
     toggle.append(checkbox, track);
     row.append(open, toggle);
@@ -691,8 +673,8 @@ function openRuleEditor(pack?: RulePackSetting): void {
   ruleEditorDeleteButton.hidden = !pack || (managed && !pack.customized);
   ruleEditorDeleteButton.textContent = managed ? "恢复默认" : "删除规则";
   ruleEditorDeleteButton.className = managed
-    ? "rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600 transition hover:border-stone-300 hover:text-stone-900"
-    : "rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-extrabold text-red-700";
+    ? "rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600 transition hover:border-stone-300 hover:text-stone-900 dark:border-white/15 dark:bg-[#2c2c2e] dark:text-white/70 dark:hover:border-white/30 dark:hover:text-white"
+    : "rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-extrabold text-red-700 dark:border-[#ff453a]/40 dark:bg-[#ff453a]/15 dark:text-[#ff453a]";
   ruleEditorRefreshButton.hidden = !pack || !(pack.source.url || pack.defaultUrl);
   ruleEditorMeta.textContent = pack ? ruleEditorMetaText(pack) : "自定义规则优先于默认规则。";
   ruleEditorDialog.showModal();
@@ -773,7 +755,7 @@ async function loadDiagnostics(): Promise<void> {
   if (!response.ok) throw new Error(response.error ?? "诊断记录读取失败");
   const events = response.data ?? [];
   if (events.length === 0) {
-    diagnosticList.className = "mt-4 rounded-xl bg-stone-50 px-4 py-5 text-center text-sm text-stone-400";
+    diagnosticList.className = "mt-4 rounded-xl bg-stone-50 px-4 py-5 text-center text-sm text-stone-400 dark:bg-[#242426] dark:text-white/40";
     diagnosticList.textContent = "暂无诊断记录";
     return;
   }
@@ -782,16 +764,16 @@ async function loadDiagnostics(): Promise<void> {
   const fragment = document.createDocumentFragment();
   for (const item of events) {
     const row = document.createElement("article");
-    row.className = "grid gap-1 rounded-xl border border-stone-200 bg-white px-4 py-3";
+    row.className = "grid gap-1 rounded-xl border border-stone-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#242426]";
     const title = document.createElement("strong");
     title.className = "text-sm";
     title.textContent = `[${labels[item.type]}] ${item.message}`;
     const time = document.createElement("time");
-    time.className = "text-xs text-stone-400";
+    time.className = "text-xs text-stone-400 dark:text-white/40";
     time.dateTime = item.occurredAt;
     time.textContent = new Date(item.occurredAt).toLocaleString("zh-CN", { hour12: false });
     const details = document.createElement("small");
-    details.className = "text-sm text-stone-500";
+    details.className = "text-sm text-stone-500 dark:text-white/65";
     details.textContent = item.details || "无更多信息";
     row.append(title, time, details);
     fragment.append(row);
@@ -804,6 +786,7 @@ async function loadStoredData(): Promise<void> {
     chrome.storage.local.get([
       INSTALL_TIME_KEY, ACTIVE_TAB_KEY, AUTO_REFRESH_ENABLED_KEY,
       AUTO_REFRESH_INTERVAL_KEY, NETWORK_INFO_CACHE_KEY, FALLBACK_MODE_KEY,
+      PROXY_REFRESH_INTERVAL_KEY,
     ]),
     sendMessage<ProxyProviderState>({ type: "GET_PROXY_PROVIDER_STATE" }),
     sendMessage<RulePackSetting[]>({ type: "GET_RULE_PACK_SETTINGS" }),
@@ -815,7 +798,7 @@ async function loadStoredData(): Promise<void> {
   renderProviderState(providerResponse.data);
   const cache = stored[NETWORK_INFO_CACHE_KEY] as unknown;
   if (cacheMatchesActive(cache, providerResponse.data)) renderNetworkInfo(cache);
-  else resetNetworkInfo("尚无当前代理节点的检测结果；节点变化后会自动检测，也可以手动刷新。");
+  else resetNetworkInfo();
   renderRulePacks(rulesResponse.data);
   const storedFallback = stored[FALLBACK_MODE_KEY] as unknown;
   renderFallbackMode(storedFallback === "proxy" || storedFallback === "system" ? storedFallback : "direct");
@@ -825,6 +808,10 @@ async function loadStoredData(): Promise<void> {
   autoRefreshEnabled.checked = autoEnabled;
   autoRefreshInterval.value = String([6, 12, 24, 168].includes(interval) ? interval : 24);
   autoRefreshInterval.disabled = !autoEnabled;
+  const proxyInterval = Number(stored[PROXY_REFRESH_INTERVAL_KEY]);
+  proxyRefreshInterval.value = String([6, 12, 24, 168].includes(proxyInterval)
+    ? proxyInterval
+    : 6);
   installedAtElement.textContent = stored[INSTALL_TIME_KEY]
     ? new Date(stored[INSTALL_TIME_KEY] as string).toLocaleString("zh-CN", { hour12: false })
     : "暂无记录";
@@ -843,7 +830,22 @@ subscriptionForm.addEventListener("submit", (event) => {
       updateFailed?: string;
     }>({ type: "SAVE_PROXY_SUBSCRIPTION", url });
     if (!response.ok || !response.data) throw new Error(response.error ?? "代理订阅保存失败");
-    await applyProviderState(response.data.state, endpointChanged(before, response.data.state));
+    const firstSuccessfulLoad = response.data.state.subscription?.url === url &&
+      (!before?.subscription || before.subscription.url !== url);
+    let nextState = response.data.state;
+    if (pendingProxySourceMode === "subscription" && nextState.subscription) {
+      const modeResponse = await sendMessage<{ state: ProxyProviderState }>({
+        type: "SET_PROXY_SOURCE_MODE",
+        mode: "subscription",
+      });
+      if (!modeResponse.ok || !modeResponse.data) {
+        throw new Error(modeResponse.error ?? "代理订阅已保存，但切换来源失败");
+      }
+      nextState = modeResponse.data.state;
+    }
+    await applyProviderState(nextState, firstSuccessfulLoad || endpointChanged(before, nextState));
+    pendingProxySourceMode = undefined;
+    proxyEditorDialog.close();
     showToast(response.data.updateFailed ?? response.message ?? "代理订阅已保存",
       response.data.updateFailed || response.data.usedCached ? "warning" : "success");
   })().catch((error) => showToast(error instanceof Error ? error.message : "代理订阅保存失败", "error"));
@@ -869,43 +871,57 @@ refreshProxySubscriptionButton.addEventListener("click", () => {
     .finally(() => { refreshProxySubscriptionButton.disabled = !providerState?.subscriptionUrl; });
 });
 
-subscriptionRadio.addEventListener("change", () => {
-  if (!subscriptionRadio.checked) return;
-  const before = providerState;
-  void sendMessage<{ state: ProxyProviderState }>({ type: "SET_PROXY_SOURCE_MODE", mode: "subscription" })
-    .then(async (response) => {
-      if (!response.ok || !response.data) throw new Error(response.error ?? "代理来源切换失败");
-      await applyProviderState(response.data.state, endpointChanged(before, response.data.state));
-      showToast(response.message ?? "已切换到代理订阅", "success");
-    })
-    .catch((error) => {
-      if (providerState) renderProviderState(providerState);
-      showToast(error instanceof Error ? error.message : "代理来源切换失败", "error");
-    });
-});
+async function selectProxySource(mode: ProxySourceMode): Promise<void> {
+  proxySourcePickerDialog.close();
+  if (!providerState || mode === providerState.sourceMode) return;
 
-manualRadio.addEventListener("change", () => {
-  if (!manualRadio.checked) return;
-  if (!providerState?.manualOverride) {
-    // 第一次使用手动覆盖时先展开表单；真正保存时后台会同时切换到 manual。
-    subscriptionSettings.hidden = true;
-    manualSettings.hidden = false;
-    showToast("填写代理地址并保存后即可启用手动覆盖", "info");
-    manualHostInput.focus();
+  if (mode === "manual" && !providerState.manualOverride) {
+    pendingProxySourceMode = "manual";
+    openProxyEditor("manual");
+    showToast("请先保存手动代理，保存后会自动切换", "info");
+    return;
+  }
+  if (mode === "subscription" && !providerState.subscription) {
+    pendingProxySourceMode = "subscription";
+    openProxyEditor("subscription");
+    showToast("请先保存并更新代理订阅，成功后会自动切换", "info");
     return;
   }
 
   const before = providerState;
-  void sendMessage<{ state: ProxyProviderState }>({ type: "SET_PROXY_SOURCE_MODE", mode: "manual" })
-    .then(async (response) => {
-      if (!response.ok || !response.data) throw new Error(response.error ?? "代理来源切换失败");
-      await applyProviderState(response.data.state, endpointChanged(before, response.data.state));
-      showToast(response.message ?? "已使用手动代理覆盖", "success");
-    })
-    .catch((error) => {
+  for (const button of proxySourceOptionButtons) button.disabled = true;
+  try {
+    const response = await sendMessage<{ state: ProxyProviderState }>({
+      type: "SET_PROXY_SOURCE_MODE",
+      mode,
+    });
+    if (!response.ok || !response.data) throw new Error(response.error ?? "代理来源切换失败");
+    await applyProviderState(response.data.state, endpointChanged(before, response.data.state));
+    showToast(response.message ?? (mode === "manual" ? "已使用手动代理" : "已使用代理订阅"), "success");
+  } finally {
+    for (const button of proxySourceOptionButtons) button.disabled = false;
+  }
+}
+
+openProxySourcePickerButton.addEventListener("click", () => {
+  proxySourcePickerDialog.showModal();
+});
+
+for (const button of proxySourceOptionButtons) {
+  button.addEventListener("click", () => {
+    const mode = button.dataset.proxySourceOption === "manual" ? "manual" : "subscription";
+    void selectProxySource(mode).catch((error) => {
       if (providerState) renderProviderState(providerState);
       showToast(error instanceof Error ? error.message : "代理来源切换失败", "error");
     });
+  });
+}
+
+proxySourcePickerCloseButton.addEventListener("click", () => {
+  proxySourcePickerDialog.close();
+});
+proxySourcePickerDialog.addEventListener("click", (event) => {
+  if (event.target === proxySourcePickerDialog) proxySourcePickerDialog.close();
 });
 
 manualProxyForm.addEventListener("submit", (event) => {
@@ -919,11 +935,42 @@ manualProxyForm.addEventListener("submit", (event) => {
     const response = await sendMessage<{ state: ProxyProviderState }>({ type: "SAVE_MANUAL_PROXY", host, port });
     if (!response.ok || !response.data) throw new Error(response.error ?? "手动代理保存失败");
     await applyProviderState(response.data.state, endpointChanged(before, response.data.state));
+    pendingProxySourceMode = undefined;
+    proxyEditorDialog.close();
     showToast(response.message ?? "手动代理已保存", "success");
   })().catch((error) => showToast(error instanceof Error ? error.message : "手动代理保存失败", "error"));
 });
 
 refreshNetworkInfoButton.addEventListener("click", () => { void refreshNetworkInfo(); });
+
+openProxyEditorButton.addEventListener("click", () => {
+  pendingProxySourceMode = undefined;
+  openProxyEditor(providerState?.sourceMode ?? "subscription");
+});
+
+proxyEditorCloseButton.addEventListener("click", () => {
+  pendingProxySourceMode = undefined;
+  proxyEditorDialog.close();
+});
+proxyEditorDialog.addEventListener("click", (event) => {
+  if (event.target === proxyEditorDialog) {
+    pendingProxySourceMode = undefined;
+    proxyEditorDialog.close();
+  }
+});
+proxyEditorDialog.addEventListener("close", () => {
+  pendingProxySourceMode = undefined;
+});
+
+proxyRefreshInterval.addEventListener("change", () => {
+  const intervalHours = Number(proxyRefreshInterval.value);
+  void sendMessage({ type: "UPDATE_PROXY_SUBSCRIPTION_REFRESH", intervalHours })
+    .then((response) => {
+      if (!response.ok) throw new Error(response.error ?? "更新时间保存失败");
+      showToast(response.message ?? "代理订阅更新时间已保存", "success");
+    })
+    .catch((error) => showToast(error instanceof Error ? error.message : "更新时间保存失败", "error"));
+});
 
 for (const button of tabButtons) {
   button.addEventListener("click", () => {

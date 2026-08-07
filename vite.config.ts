@@ -8,6 +8,12 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     minify: false,
+    // 扩展页面和 Service Worker 属于不同执行上下文；共享 chunk 的 preload
+    // 会被 Chrome 判定为 cross-world resource mismatch。只保留正常 ESM import。
+    modulePreload: {
+      polyfill: false,
+      resolveDependencies: () => [],
+    },
     rollupOptions: {
       input: {
         popup: resolve(import.meta.dirname, "popup.html"),

@@ -5,156 +5,113 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Auto Proxy 高级设置</title>
   </head>
-  <body class="min-h-screen bg-stone-100 font-sans text-[15px] leading-6 text-stone-900 antialiased">
-    <main class="mx-auto flex min-h-screen w-full max-w-[1180px] items-start justify-center px-6 py-10 lg:py-14">
-      <section class="w-full overflow-hidden rounded-[30px] border border-stone-200 bg-white shadow-[0_28px_90px_rgba(28,25,23,.08)]">
-        <header class="flex flex-wrap items-start justify-between gap-6 border-b border-stone-100 px-8 py-8 lg:px-10">
-          <div class="flex items-center gap-4">
-            <span class="grid size-12 place-items-center rounded-2xl bg-stone-900 text-lg font-black text-white shadow-lg shadow-stone-900/10" aria-hidden="true">A</span>
+  <body class="settings-page min-h-screen bg-stone-100 font-sans text-sm leading-5 text-stone-900 antialiased dark:bg-black dark:text-[#f5f5f7] dark:[color-scheme:dark]">
+    <main class="mx-auto flex h-screen w-full max-w-[820px] items-center justify-center px-3 py-3">
+      <section class="flex h-[calc(100vh-24px)] max-h-[760px] w-full flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_16px_48px_rgba(28,25,23,.06)] dark:border-white/15 dark:bg-[#1c1c1e] dark:shadow-[0_22px_70px_rgba(0,0,0,.5)]">
+        <header class="flex shrink-0 flex-wrap items-start justify-between gap-4 border-b border-stone-100 px-5 py-4 dark:border-white/10 lg:px-6">
+          <div class="flex items-center gap-3">
+            <span class="grid size-10 place-items-center rounded-xl bg-stone-900 text-base font-black text-white shadow-md shadow-stone-900/10 dark:bg-[#0a84ff] dark:shadow-black/20" aria-hidden="true">A</span>
             <div>
-              <p class="mb-1 text-xs font-extrabold tracking-[.22em] text-stone-400">AUTO PROXY</p>
-              <h1 class="text-[28px] font-black tracking-[-.04em]">高级设置</h1>
-              <p class="mt-1 text-[15px] text-stone-500">管理代理来源、网络出口与自定义分流规则。</p>
+              <p class="mb-1 text-xs font-extrabold tracking-[.22em] text-stone-400 dark:text-white/40">AUTO PROXY</p>
+              <h1 class="text-2xl font-black tracking-[-.04em]">高级设置</h1>
             </div>
           </div>
-          <div id="proxy-health-badge" class="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3.5 py-2 text-sm font-extrabold text-red-700" data-state="unhealthy" aria-label="代理状态">
-            <span class="size-2 rounded-full bg-red-500" data-health-dot aria-hidden="true"></span>
-            <span id="proxy-health-text">代理 · 异常</span>
+          <div id="proxy-health-badge" class="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3.5 py-2 text-sm font-extrabold text-red-700 dark:border-[#ff453a]/40 dark:bg-[#ff453a]/15 dark:text-[#ff453a]" data-state="unhealthy" aria-label="代理状态">
+            <span class="size-2 rounded-full bg-red-500 dark:bg-[#ff453a]" data-health-dot aria-hidden="true"></span>
+            <span id="proxy-health-text">代理异常</span>
           </div>
         </header>
 
-        <div class="flex items-center justify-between border-b border-stone-100 px-8 lg:px-10">
+        <div class="flex shrink-0 items-center justify-between border-b border-stone-100 px-5 dark:border-white/10 lg:px-6">
           <nav class="flex gap-1 py-3" role="tablist" aria-label="功能设置">
-            <button class="tab active rounded-xl px-4 py-2.5 text-sm font-extrabold" type="button" role="tab" aria-selected="true" data-tab-target="proxy">代理</button>
-            <button class="tab rounded-xl px-4 py-2.5 text-sm font-extrabold text-stone-500" type="button" role="tab" aria-selected="false" data-tab-target="rules">规则</button>
+            <button class="tab active inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-extrabold" type="button" role="tab" aria-selected="true" data-tab-target="proxy"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8.5 12.5 11 15l4.5-6"/><path d="M6.5 4.5h11a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3Z"/></svg>代理</button>
+            <button class="tab inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-extrabold text-stone-500 dark:text-white/65" type="button" role="tab" aria-selected="false" data-tab-target="rules"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 6h11M8 12h11M8 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01" stroke-linecap="round" stroke-width="3"/></svg>规则</button>
           </nav>
-          <button id="about-button" class="about-button rounded-xl px-4 py-2.5 text-sm font-extrabold text-stone-500 transition hover:bg-stone-50 hover:text-stone-900" type="button" aria-pressed="false">关于</button>
+          <button id="about-button" class="about-button inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-extrabold text-stone-500 transition hover:bg-stone-50 hover:text-stone-900 dark:text-white/65 dark:hover:bg-white/8 dark:hover:text-white" type="button" aria-pressed="false"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10.5V17M12 7h.01" stroke-linecap="round"/></svg>关于</button>
         </div>
 
-        <div class="px-8 py-8 lg:px-10 lg:py-10">
-          <section data-tab-panel="proxy" class="space-y-7">
-            <div>
-              <h2 class="text-xl font-black tracking-[-.02em]">代理来源</h2>
-              <p class="mt-1 text-[15px] text-stone-500">默认使用集中维护的代理订阅；需要调试时可切换到手动覆盖。</p>
-            </div>
-
-            <div class="grid gap-3 md:grid-cols-2" role="radiogroup" aria-label="代理来源">
-              <label class="cursor-pointer">
-                <input id="proxy-source-subscription" class="peer sr-only" type="radio" name="proxy-source" value="subscription" />
-                <span class="flex min-h-20 items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 px-5 py-4 transition peer-checked:border-stone-900 peer-checked:bg-stone-900 peer-checked:text-white">
-                  <span><strong class="block text-[15px]">代理订阅</strong><small class="mt-1 block text-sm text-stone-400 peer-checked:text-white/60">推荐 · 多设备统一维护</small></span>
-                  <span class="size-3 rounded-full border-2 border-stone-300 peer-checked:border-white peer-checked:bg-white"></span>
-                </span>
-              </label>
-              <label class="cursor-pointer">
-                <input id="proxy-source-manual" class="peer sr-only" type="radio" name="proxy-source" value="manual" />
-                <span class="flex min-h-20 items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 px-5 py-4 transition peer-checked:border-stone-900 peer-checked:bg-stone-900 peer-checked:text-white">
-                  <span><strong class="block text-[15px]">手动覆盖</strong><small class="mt-1 block text-sm text-stone-400 peer-checked:text-white/60">仅当前设备使用</small></span>
-                  <span class="size-3 rounded-full border-2 border-stone-300 peer-checked:border-white peer-checked:bg-white"></span>
-                </span>
-              </label>
-            </div>
-
-            <section id="subscription-settings" class="rounded-2xl border border-stone-200 bg-stone-50/70 p-5">
-              <div class="flex flex-wrap items-start justify-between gap-3">
-                <span><strong class="block text-[15px]">订阅地址</strong><small class="mt-1 block text-sm text-stone-500">集中获取当前代理配置。</small></span>
-                <span id="subscription-state-badge" class="rounded-full bg-stone-200 px-3 py-1 text-xs font-extrabold text-stone-600">未配置</span>
-              </div>
-              <form id="subscription-form" class="mt-4 flex flex-col gap-3 sm:flex-row">
-                <input id="subscription-url" class="min-w-0 flex-1 rounded-xl border border-stone-300 bg-white px-4 py-3 text-[15px] outline-none transition placeholder:text-stone-300 focus:border-stone-500 focus:ring-4 focus:ring-stone-900/5" type="url" placeholder="https://example.com/proxies.json" autocomplete="off" />
-                <button class="rounded-xl bg-stone-900 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-stone-800" type="submit">保存并更新</button>
-              </form>
-              <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <small id="subscription-meta" class="text-sm text-stone-500">未加载订阅</small>
-                <button id="refresh-proxy-subscription" class="text-sm font-extrabold text-stone-600 transition hover:text-stone-900" type="button">立即更新</button>
-              </div>
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 lg:px-6">
+          <section data-tab-panel="proxy" class="space-y-3">
+            <section class="overflow-hidden rounded-xl border border-stone-200 bg-white dark:border-white/10 dark:bg-[#242426]" aria-label="代理来源">
+              <button id="open-proxy-source-picker" class="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-stone-50 dark:hover:bg-white/5" type="button">
+                <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-[#0a84ff]/18 dark:text-[#64d2ff]" aria-hidden="true"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8.5a5 5 0 0 1 9.5-1.8A4 4 0 1 1 17 14.5H7a3 3 0 1 1 0-6Z"/></svg></span>
+                <span class="min-w-0 flex-1"><strong id="proxy-source-title" class="block text-[15px]">代理来源</strong><small class="mt-0.5 block text-xs text-stone-400 dark:text-white/40">选择配置的获取方式</small></span>
+                <span id="proxy-source-value" class="text-sm font-bold text-stone-500 dark:text-white/65">代理订阅</span>
+                <svg class="size-4 shrink-0 text-stone-300 dark:text-white/25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+              </button>
+              <button id="open-proxy-editor" class="flex w-full items-center gap-3 border-t border-stone-100 px-4 py-3 text-left transition hover:bg-stone-50 dark:border-white/8 dark:hover:bg-white/5" type="button">
+                <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-stone-100 text-stone-600 dark:bg-white/8 dark:text-white/65" aria-hidden="true"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6"/></svg></span>
+                <span class="min-w-0 flex-1"><strong id="proxy-source-settings-title" class="block text-[15px]">订阅设置</strong><small id="proxy-source-settings-detail" class="mt-0.5 block truncate text-xs text-stone-400 dark:text-white/40">订阅尚未更新</small></span>
+                <svg class="size-4 shrink-0 text-stone-300 dark:text-white/25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+              </button>
             </section>
 
-            <section id="manual-settings" class="rounded-2xl border border-stone-200 bg-stone-50/70 p-5" hidden>
-              <div><strong class="block text-[15px]">手动代理</strong><small class="mt-1 block text-sm text-stone-500">覆盖代理订阅，仅影响当前设备。</small></div>
-              <form id="manual-proxy-form" class="mt-4">
-                <div class="grid gap-4 sm:grid-cols-[1fr_150px]">
-                  <label><span class="mb-2 block text-sm font-bold text-stone-700">代理地址</span><input id="manual-proxy-host" class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-[15px] outline-none focus:border-stone-500 focus:ring-4 focus:ring-stone-900/5" type="text" value="127.0.0.1" autocomplete="off" required /></label>
-                  <label><span class="mb-2 block text-sm font-bold text-stone-700">端口</span><input id="manual-proxy-port" class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-[15px] outline-none focus:border-stone-500 focus:ring-4 focus:ring-stone-900/5" type="number" value="7890" min="1" max="65535" required /></label>
-                </div>
-                <div class="mt-4 flex justify-end"><button class="rounded-xl bg-stone-900 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-stone-800" type="submit">保存手动代理</button></div>
-              </form>
-            </section>
-
-            <section class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-white px-5 py-4" aria-labelledby="active-proxy-title">
-              <span><small class="block text-xs font-bold text-stone-400">当前生效代理</small><strong id="active-proxy-title" class="mt-1 block text-[15px]">读取中</strong></span>
-              <code id="active-proxy-endpoint" class="rounded-lg bg-stone-100 px-3 py-1.5 text-sm font-bold text-stone-600">—</code>
-            </section>
-
-            <section class="rounded-[24px] border border-stone-200 bg-stone-50/50 p-5 sm:p-6" aria-labelledby="network-info-title">
+            <section class="rounded-xl border border-stone-200 bg-stone-50/50 p-3.5 dark:border-white/10 dark:bg-[#242426]" aria-labelledby="network-info-title">
               <header class="flex flex-wrap items-start justify-between gap-4">
-                <span><strong id="network-info-title" class="block text-[16px]">网络信息</strong><small class="mt-1 block text-sm text-stone-500">本地直连 IP 与代理出口 IP 不一致时，判定代理健康。</small></span>
-                <div class="flex items-center gap-3"><small id="network-last-checked" class="text-sm text-stone-400">尚未检测</small><button id="refresh-network-info" class="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600 transition hover:border-stone-300 hover:text-stone-900" type="button">刷新</button></div>
+                <span class="flex items-start gap-2.5"><svg class="mt-0.5 size-5 shrink-0 text-stone-400 dark:text-white/45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span><strong id="network-info-title" class="block text-[16px]">网络信息</strong><small class="mt-1 block text-sm text-stone-500 dark:text-white/65">本地直连 IP 与代理出口 IP 不一致时，判定代理健康。</small></span></span>
+                <div class="flex items-center gap-3"><small id="network-last-checked" class="text-sm text-stone-400 dark:text-white/40">尚未检测</small><button id="refresh-network-info" class="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600 transition hover:border-stone-300 hover:text-stone-900 dark:border-white/15 dark:bg-[#2c2c2e] dark:text-white/70 dark:hover:border-white/30 dark:hover:text-white" type="button">刷新</button></div>
               </header>
-              <div class="mt-5 grid gap-4 md:grid-cols-2">
-                <article class="rounded-2xl border border-blue-100 bg-blue-50/50 p-5" data-route="direct">
-                  <span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-extrabold text-blue-700">本地直连</span>
-                  <strong id="direct-exit-ip" class="mt-4 block break-all font-mono text-xl tracking-[-.02em] text-stone-900">—</strong>
-                  <div class="mt-4 grid grid-cols-[54px_1fr] gap-2 text-sm"><span class="text-stone-400">位置</span><small id="direct-exit-location" class="text-stone-600">—</small></div>
-                  <div class="mt-2 grid grid-cols-[54px_1fr] gap-2 text-sm"><span class="text-stone-400">网络</span><small id="direct-exit-network" class="text-stone-600">—</small></div>
-                  <span id="direct-exit-time" class="mt-3 block text-xs text-stone-400"></span>
+              <div class="mt-3 grid gap-2.5 md:grid-cols-2">
+                <article class="rounded-xl border border-blue-100 bg-blue-50/50 p-3.5 dark:border-white/10 dark:bg-[#2c2c2e]" data-route="direct">
+                  <span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-extrabold text-blue-700 dark:bg-[#0a84ff]/25 dark:text-[#64d2ff]">本地直连</span>
+                  <strong id="direct-exit-ip" class="mt-2 block break-all text-lg tracking-[-.02em] text-stone-900 dark:text-[#f5f5f7]">—</strong>
+                  <div class="mt-2 grid grid-cols-[48px_1fr] gap-2 text-xs"><span class="text-stone-400 dark:text-white/40">位置</span><small id="direct-exit-location" class="text-stone-600 dark:text-white/65">—</small></div>
+                  <div class="mt-2 grid grid-cols-[54px_1fr] gap-2 text-sm"><span class="text-stone-400 dark:text-white/40">网络</span><small id="direct-exit-network" class="text-stone-600 dark:text-white/65">—</small></div>
                 </article>
-                <article class="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-5" data-route="proxy">
-                  <span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-extrabold text-emerald-700">代理出口</span>
-                  <strong id="proxy-exit-ip" class="mt-4 block break-all font-mono text-xl tracking-[-.02em] text-stone-900">—</strong>
-                  <div class="mt-4 grid grid-cols-[54px_1fr] gap-2 text-sm"><span class="text-stone-400">位置</span><small id="proxy-exit-location" class="text-stone-600">—</small></div>
-                  <div class="mt-2 grid grid-cols-[54px_1fr] gap-2 text-sm"><span class="text-stone-400">网络</span><small id="proxy-exit-network" class="text-stone-600">—</small></div>
-                  <span id="proxy-exit-time" class="mt-3 block text-xs text-stone-400"></span>
+                <article class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3.5 dark:border-white/10 dark:bg-[#2c2c2e]" data-route="proxy">
+                  <span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-extrabold text-emerald-700 dark:bg-[#30d158]/20 dark:text-[#30d158]">代理出口</span>
+                  <strong id="proxy-exit-ip" class="mt-2 block break-all text-lg tracking-[-.02em] text-stone-900 dark:text-[#f5f5f7]">—</strong>
+                  <div class="mt-2 grid grid-cols-[48px_1fr] gap-2 text-xs"><span class="text-stone-400 dark:text-white/40">位置</span><small id="proxy-exit-location" class="text-stone-600 dark:text-white/65">—</small></div>
+                  <div class="mt-2 grid grid-cols-[54px_1fr] gap-2 text-sm"><span class="text-stone-400 dark:text-white/40">网络</span><small id="proxy-exit-network" class="text-stone-600 dark:text-white/65">—</small></div>
                 </article>
               </div>
-              <p id="network-route-summary" class="mt-4 rounded-xl bg-stone-100 px-4 py-3 text-sm font-semibold text-stone-500">尚无当前代理节点的检测结果。</p>
             </section>
           </section>
 
-          <section data-tab-panel="rules" class="space-y-7" hidden>
+          <section data-tab-panel="rules" class="space-y-5" hidden>
             <div class="flex flex-wrap items-start justify-between gap-4">
-              <div><h2 class="text-xl font-black tracking-[-.02em]">规则</h2><p class="mt-1 text-[15px] text-stone-500">默认规则保持简洁；需要时可进入管理页修改并随时恢复默认。</p></div>
-              <button id="refresh-enabled-rules" class="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600 transition hover:border-stone-300 hover:text-stone-900" type="button">更新规则</button>
+              <div><h2 class="text-xl font-black tracking-[-.02em]">规则</h2><p class="mt-1 text-[15px] text-stone-500 dark:text-white/65">默认规则保持简洁；需要时可进入管理页修改并随时恢复默认。</p></div>
+              <button id="refresh-enabled-rules" class="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600 transition hover:border-stone-300 hover:text-stone-900 dark:border-white/15 dark:bg-[#2c2c2e] dark:text-white/70 dark:hover:border-white/30 dark:hover:text-white" type="button">更新规则</button>
             </div>
 
-            <section class="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+            <section class="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 dark:border-white/10 dark:bg-[#242426]">
               <div class="grid grid-cols-[42px_1fr_auto_auto] items-center gap-4">
-                <span class="grid size-10 place-items-center rounded-xl bg-white text-lg text-stone-500 shadow-sm" aria-hidden="true">↗</span>
-                <span><strong class="block text-[15px]">默认分流规则</strong><small class="mt-1 block text-sm text-stone-500">产品预设 · 自动启用</small></span>
-                <span id="managed-rule-count" class="rounded-full bg-stone-200 px-3 py-1 text-xs font-extrabold text-stone-600">读取中</span>
-                <button id="manage-managed-rules" class="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-extrabold text-stone-600 transition hover:border-stone-300 hover:text-stone-900" type="button">管理</button>
+                <span class="grid size-10 place-items-center rounded-xl bg-white text-lg text-stone-500 shadow-sm dark:bg-[#2c2c2e] dark:text-white/65" aria-hidden="true">↗</span>
+                <span><strong class="block text-[15px]">默认分流规则</strong><small class="mt-1 block text-sm text-stone-500 dark:text-white/65">产品预设 · 自动启用</small></span>
+                <span id="managed-rule-count" class="rounded-full bg-stone-200 px-3 py-1 text-xs font-extrabold text-stone-600 dark:bg-white/10 dark:text-white/65">读取中</span>
+                <button id="manage-managed-rules" class="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-extrabold text-stone-600 transition hover:border-stone-300 hover:text-stone-900 dark:border-white/15 dark:bg-[#2c2c2e] dark:text-white/70 dark:hover:border-white/30 dark:hover:text-white" type="button">管理</button>
               </div>
             </section>
 
             <section>
-              <div class="flex items-center justify-between gap-4"><span><strong class="block text-[15px]">自定义规则</strong><small class="mt-1 block text-sm text-stone-500">高级覆盖 · 冲突时优先于默认规则</small></span><button id="add-rule-pack" class="text-sm font-extrabold text-stone-600 transition hover:text-stone-900" type="button">+ 添加规则</button></div>
+              <div class="flex items-center justify-between gap-4"><span><strong class="block text-[15px]">自定义规则</strong><small class="mt-1 block text-sm text-stone-500 dark:text-white/65">高级覆盖 · 冲突时优先于默认规则</small></span><button id="add-rule-pack" class="text-sm font-extrabold text-stone-600 transition hover:text-stone-900 dark:text-white/70 dark:hover:text-white" type="button">+ 添加规则</button></div>
               <div id="custom-rule-list" class="mt-4 grid gap-3"></div>
-              <p id="custom-rule-empty" class="mt-4 rounded-2xl border border-dashed border-stone-300 px-5 py-8 text-center text-sm text-stone-400" hidden>暂无自定义规则。</p>
+              <p id="custom-rule-empty" class="mt-4 rounded-2xl border border-dashed border-stone-300 px-5 py-8 text-center text-sm text-stone-400 dark:border-white/15 dark:text-white/40" hidden>暂无自定义规则。</p>
             </section>
 
-            <label class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-5" for="fallback-mode">
-              <span><strong class="block text-[15px]">未命中规则</strong><small id="fallback-description" class="mt-1 block text-sm text-stone-500">未命中任何规则的网站由 Chrome 直接连接。</small></span>
-              <select id="fallback-mode" class="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-bold outline-none focus:border-stone-500"><option value="direct">直接连接</option><option value="proxy">当前代理</option><option value="system">系统代理</option></select>
+            <label class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-white/10 dark:bg-[#242426]" for="fallback-mode">
+              <span><strong class="block text-[15px]">未命中规则</strong><small id="fallback-description" class="mt-1 block text-sm text-stone-500 dark:text-white/65">未命中任何规则的网站由 Chrome 直接连接。</small></span>
+              <select id="fallback-mode" class="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-bold outline-none focus:border-stone-500 dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7] dark:focus:border-[#0a84ff]"><option value="direct">直接连接</option><option value="proxy">当前代理</option><option value="system">系统代理</option></select>
             </label>
 
             <div class="grid gap-4 lg:grid-cols-2">
-              <form id="rule-match-form" class="flex items-end gap-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-5">
-                <label class="min-w-0 flex-1"><span class="mb-2 block text-sm font-bold text-stone-700">规则命中测试</span><input id="rule-match-input" class="w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-[15px] outline-none focus:border-stone-500" placeholder="例如 www.google.com" /></label>
-                <button type="submit" class="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600">测试</button>
+              <form id="rule-match-form" class="flex items-end gap-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-5 dark:border-white/10 dark:bg-[#242426]">
+                <label class="min-w-0 flex-1"><span class="mb-2 block text-sm font-bold text-stone-700 dark:text-white/90">规则命中测试</span><input id="rule-match-input" class="w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-[15px] outline-none focus:border-stone-500 dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7] dark:placeholder:text-white/30 dark:focus:border-[#0a84ff]" placeholder="例如 www.google.com" /></label>
+                <button type="submit" class="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600 dark:border-white/15 dark:bg-[#2c2c2e] dark:text-white/70">测试</button>
               </form>
-              <div class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-stone-50/70 p-5">
-                <span><strong class="block text-[15px]">自动更新规则</strong><small class="mt-1 block text-sm text-stone-500">更新默认规则与已启用的远程自定义规则。</small></span>
-                <span class="flex items-center gap-3"><label class="relative inline-flex cursor-pointer items-center"><input id="auto-refresh-enabled" class="peer sr-only" type="checkbox" /><span class="h-7 w-12 rounded-full bg-stone-200 transition peer-checked:bg-emerald-500 after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-5"></span></label><select id="auto-refresh-interval" class="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-bold"><option value="6">每 6 小时</option><option value="12">每 12 小时</option><option value="24">每天</option><option value="168">每周</option></select></span>
+              <div class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-stone-50/70 p-5 dark:border-white/10 dark:bg-[#242426]">
+                <span><strong class="block text-[15px]">自动更新规则</strong><small class="mt-1 block text-sm text-stone-500 dark:text-white/65">更新默认规则与已启用的远程自定义规则。</small></span>
+                <span class="flex items-center gap-3"><label class="relative inline-flex cursor-pointer items-center"><input id="auto-refresh-enabled" class="peer sr-only" type="checkbox" /><span class="h-7 w-12 rounded-full bg-stone-200 transition peer-checked:bg-emerald-500 after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-5 dark:bg-white/15 dark:peer-checked:bg-[#30d158]"></span></label><select id="auto-refresh-interval" class="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-bold dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7]"><option value="6">每 6 小时</option><option value="12">每 12 小时</option><option value="24">每天</option><option value="168">每周</option></select></span>
               </div>
             </div>
           </section>
 
           <section data-view-panel="about" class="space-y-6" hidden>
-            <div><h2 class="text-xl font-black tracking-[-.02em]">关于</h2><p class="mt-1 text-[15px] text-stone-500">Auto Proxy 是一个轻量的规则分流代理工具。</p></div>
-            <dl class="divide-y divide-stone-100 overflow-hidden rounded-2xl border border-stone-200"><div class="flex justify-between gap-4 px-5 py-4"><dt class="text-stone-500">扩展版本</dt><dd id="version" class="font-bold">读取中</dd></div><div class="flex justify-between gap-4 px-5 py-4"><dt class="text-stone-500">安装记录</dt><dd id="installed-at" class="font-bold">读取中</dd></div></dl>
-            <details class="group overflow-hidden rounded-2xl border border-stone-200 bg-stone-50/60">
-              <summary class="flex cursor-pointer list-none items-center justify-between px-5 py-4"><span><strong class="block text-[15px]">诊断与故障排查</strong><small class="mt-1 block text-sm text-stone-500">查看最近的代理、订阅和后台错误</small></span><span class="text-stone-400 transition group-open:rotate-180" aria-hidden="true">⌄</span></summary>
-              <div class="border-t border-stone-200 bg-white p-5"><div class="flex items-center justify-between gap-4"><p class="text-sm text-stone-500">最多保留最近 30 条记录。</p><button id="clear-diagnostics" class="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-extrabold text-stone-600" type="button">清除记录</button></div><div id="diagnostic-list" class="mt-4 grid gap-3"></div></div>
+            <div><h2 class="text-xl font-black tracking-[-.02em]">关于</h2><p class="mt-1 text-[15px] text-stone-500 dark:text-white/65">Auto Proxy 是一个轻量的规则分流代理工具。</p></div>
+            <dl class="divide-y divide-stone-100 overflow-hidden rounded-2xl border border-stone-200 dark:divide-white/10 dark:border-white/10"><div class="flex justify-between gap-4 px-5 py-4"><dt class="text-stone-500 dark:text-white/65">扩展版本</dt><dd id="version" class="font-bold">读取中</dd></div><div class="flex justify-between gap-4 px-5 py-4"><dt class="text-stone-500 dark:text-white/65">安装记录</dt><dd id="installed-at" class="font-bold">读取中</dd></div></dl>
+            <details class="group overflow-hidden rounded-2xl border border-stone-200 bg-stone-50/60 dark:border-white/10 dark:bg-[#242426]">
+              <summary class="flex cursor-pointer list-none items-center justify-between px-5 py-4"><span><strong class="block text-[15px]">诊断与故障排查</strong><small class="mt-1 block text-sm text-stone-500 dark:text-white/65">查看最近的代理、订阅和后台错误</small></span><span class="text-stone-400 transition group-open:rotate-180 dark:text-white/40" aria-hidden="true">⌄</span></summary>
+              <div class="border-t border-stone-200 bg-white p-5 dark:border-white/10 dark:bg-[#2c2c2e]"><div class="flex items-center justify-between gap-4"><p class="text-sm text-stone-500 dark:text-white/65">最多保留最近 30 条记录。</p><button id="clear-diagnostics" class="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-extrabold text-stone-600 dark:border-white/15 dark:bg-[#2c2c2e] dark:text-white/70" type="button">清除记录</button></div><div id="diagnostic-list" class="mt-4 grid gap-3"></div></div>
             </details>
           </section>
         </div>
@@ -163,17 +120,49 @@
 
     <div id="toast-host" class="pointer-events-none fixed left-1/2 top-5 z-[1000] grid w-[min(420px,calc(100vw-32px))] -translate-x-1/2 gap-2" aria-live="polite" aria-atomic="false"></div>
 
-    <dialog id="managed-rules-dialog" class="m-auto w-[min(720px,calc(100vw-32px))] rounded-[26px] border border-stone-200 bg-white p-0 shadow-2xl">
-      <section class="p-6 sm:p-7"><header class="flex items-start justify-between gap-5"><div><p class="text-xs font-extrabold tracking-[.18em] text-stone-400">DEFAULT RULES</p><h2 class="mt-1 text-2xl font-black tracking-[-.03em]">默认分流规则</h2><p class="mt-2 text-sm text-stone-500">通常无需调整。高级用户可以修改某一组规则，修改后可随时恢复产品默认。</p></div><button id="managed-rules-close" class="grid size-10 place-items-center rounded-xl border border-stone-200 text-xl text-stone-500 transition hover:bg-stone-50" type="button" aria-label="关闭默认规则管理">×</button></header><div id="managed-rule-list" class="mt-6 grid gap-3"></div></section>
+    <dialog id="proxy-source-picker-dialog" class="m-auto w-[min(440px,calc(100vw-32px))] rounded-2xl border border-stone-200 bg-white p-0 shadow-2xl dark:border-white/20 dark:bg-[#2c2c2e] dark:text-[#f5f5f7] dark:shadow-[0_28px_90px_rgba(0,0,0,.72)] dark:backdrop:bg-black/60 dark:backdrop:backdrop-blur-md">
+      <section class="p-5">
+        <header class="flex items-center justify-between gap-4"><div><p class="text-xs font-extrabold tracking-[.16em] text-stone-400 dark:text-white/40">PROXY SOURCE</p><h2 class="mt-1 text-xl font-black">选择代理来源</h2></div><button id="proxy-source-picker-close" class="grid size-9 place-items-center rounded-lg border border-stone-200 text-lg text-stone-500 dark:border-white/15 dark:text-white/65" type="button" aria-label="关闭来源选择">×</button></header>
+        <div class="mt-4 overflow-hidden rounded-xl border border-stone-200 dark:border-white/10">
+          <button class="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-stone-50 dark:hover:bg-white/5" type="button" data-proxy-source-option="subscription">
+            <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-[#0a84ff]/18 dark:text-[#64d2ff]" aria-hidden="true"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8.5a5 5 0 0 1 9.5-1.8A4 4 0 1 1 17 14.5H7a3 3 0 1 1 0-6Z"/></svg></span>
+            <span class="min-w-0 flex-1"><strong class="block text-[15px]">代理订阅</strong><small class="mt-0.5 block text-xs text-stone-400 dark:text-white/40">自动获取并定时更新代理配置</small></span>
+            <svg class="size-5 text-blue-600 dark:text-[#0a84ff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" data-proxy-source-check="subscription" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+          </button>
+          <button class="flex w-full items-center gap-3 border-t border-stone-100 px-4 py-3.5 text-left transition hover:bg-stone-50 dark:border-white/8 dark:hover:bg-white/5" type="button" data-proxy-source-option="manual">
+            <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-stone-100 text-stone-600 dark:bg-white/8 dark:text-white/65" aria-hidden="true"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6"/></svg></span>
+            <span class="min-w-0 flex-1"><strong class="block text-[15px]">手动代理</strong><small class="mt-0.5 block text-xs text-stone-400 dark:text-white/40">临时使用指定的 IP 与端口</small></span>
+            <svg class="size-5 text-blue-600 dark:text-[#0a84ff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" data-proxy-source-check="manual" aria-hidden="true" hidden><path d="m5 12 4 4L19 6"/></svg>
+          </button>
+        </div>
+      </section>
     </dialog>
 
-    <dialog id="rule-editor-dialog" class="m-auto w-[min(860px,calc(100vw-32px))] rounded-[26px] border border-stone-200 bg-white p-0 shadow-2xl">
-      <form id="rule-editor-form" class="p-6 sm:p-7"><header class="flex items-start justify-between gap-5"><div><p id="rule-editor-kicker" class="text-xs font-extrabold tracking-[.18em] text-stone-400">CUSTOM RULE</p><h2 id="rule-editor-title" class="mt-1 text-2xl font-black tracking-[-.03em]">编辑规则</h2></div><button id="rule-editor-close" class="grid size-10 place-items-center rounded-xl border border-stone-200 text-xl text-stone-500 transition hover:bg-stone-50" type="button" aria-label="关闭编辑器">×</button></header>
-        <div class="mt-6 grid gap-4 md:grid-cols-2"><label><span class="mb-2 block text-sm font-bold text-stone-700">规则名称</span><input id="rule-editor-name" class="w-full rounded-xl border border-stone-300 px-4 py-3 text-[15px] outline-none focus:border-stone-500" autocomplete="off" required /></label><label><span class="mb-2 block text-sm font-bold text-stone-700">连接方式</span><select id="rule-editor-action" class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-[15px]"><option value="PROXY">代理</option><option value="DIRECT">直连</option></select></label><label><span class="mb-2 block text-sm font-bold text-stone-700">订阅地址</span><input id="rule-editor-url" class="w-full rounded-xl border border-stone-300 px-4 py-3 text-[15px] outline-none focus:border-stone-500" type="url" placeholder="https://example.com/rules.yaml" /></label><label><span class="mb-2 block text-sm font-bold text-stone-700">内容策略</span><select id="rule-editor-source-strategy" class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-[15px]"><option value="local-first">本地优先</option><option value="subscription-first">订阅优先</option><option value="merge">合并</option></select></label></div>
-        <p id="rule-editor-hint" class="mt-4 rounded-xl bg-stone-50 px-4 py-3 text-sm text-stone-500">自定义规则会在默认规则之前编译，因此可以明确覆盖产品默认行为。</p>
-        <label class="mt-5 block"><span class="mb-2 block text-sm font-bold text-stone-700">本地规则内容</span><textarea id="rule-editor-content" class="min-h-56 w-full resize-y rounded-xl border border-stone-300 px-4 py-3 font-mono text-sm leading-6 outline-none focus:border-stone-500" placeholder="推荐一行一个：+.example.com&#10;example.org"></textarea><small class="mt-2 block text-sm text-stone-400">无需写 payload；同时兼容 YAML payload 与 DOMAIN / DOMAIN-SUFFIX 等格式。</small></label>
-        <p id="rule-editor-meta" class="mt-3 text-sm text-stone-400"></p>
-        <footer class="mt-6 flex flex-wrap items-center justify-between gap-3"><button id="rule-editor-delete" class="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-extrabold text-red-700" type="button">删除规则</button><span class="flex flex-wrap gap-2"><button id="rule-editor-refresh" class="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600" type="button">立即下载</button><button id="rule-editor-cancel" class="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600" type="button">取消</button><button class="rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-extrabold text-white" type="submit">保存规则</button></span></footer>
+    <dialog id="proxy-editor-dialog" class="m-auto w-[min(560px,calc(100vw-32px))] rounded-2xl border border-stone-200 bg-white p-0 shadow-2xl dark:border-white/20 dark:bg-[#2c2c2e] dark:text-[#f5f5f7] dark:shadow-[0_28px_90px_rgba(0,0,0,.72)] dark:backdrop:bg-black/60 dark:backdrop:backdrop-blur-md">
+      <section class="p-5"><header class="flex items-center justify-between gap-4"><div><p class="text-xs font-extrabold tracking-[.16em] text-stone-400 dark:text-white/40">PROXY SOURCE</p><h2 id="proxy-editor-title" class="mt-1 text-xl font-black">编辑代理来源</h2></div><button id="proxy-editor-close" class="grid size-9 place-items-center rounded-lg border border-stone-200 text-lg text-stone-500 dark:border-white/15 dark:text-white/65" type="button">×</button></header>
+        <section id="subscription-settings" class="mt-5">
+          <div class="flex items-center justify-between gap-3"><strong class="text-sm">订阅地址</strong><span id="subscription-state-badge" class="rounded-full bg-stone-200 px-2.5 py-0.5 text-[11px] font-extrabold text-stone-600 dark:bg-white/10 dark:text-white/65">未配置</span></div>
+          <form id="subscription-form" class="mt-2 flex gap-2"><input id="subscription-url" class="min-w-0 flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7] dark:placeholder:text-white/30 dark:focus:border-[#0a84ff]" type="url" placeholder="https://example.com/proxies.json" autocomplete="off" /><button class="shrink-0 rounded-lg bg-stone-900 px-4 py-2 text-xs font-extrabold text-white dark:bg-[#0a84ff]" type="submit">保存并更新</button></form>
+          <div class="mt-3 flex items-center justify-between gap-3"><label class="flex items-center gap-2 text-xs font-bold text-stone-500 dark:text-white/65">自动更新<select id="proxy-refresh-interval" class="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-bold dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7]"><option value="6">每 6 小时</option><option value="12">每 12 小时</option><option value="24">每天</option><option value="168">每周</option></select></label><button id="refresh-proxy-subscription" class="text-xs font-extrabold text-stone-500 hover:text-stone-900 dark:text-white/65 dark:hover:text-white" type="button">立即更新</button></div>
+        </section>
+        <section id="manual-settings" class="mt-5" hidden>
+          <strong class="text-sm">手动代理</strong>
+          <form id="manual-proxy-form" class="mt-2 grid grid-cols-[minmax(0,1fr)_100px_auto] gap-2"><input id="manual-proxy-host" class="min-w-0 rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7] dark:placeholder:text-white/30 dark:focus:border-[#0a84ff]" type="text" value="127.0.0.1" placeholder="IP 或主机名" autocomplete="off" aria-label="代理地址" required /><input id="manual-proxy-port" class="min-w-0 rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7] dark:focus:border-[#0a84ff]" type="number" value="7890" min="1" max="65535" aria-label="端口" required /><button class="rounded-lg bg-stone-900 px-4 py-2 text-xs font-extrabold text-white dark:bg-[#0a84ff]" type="submit">保存并使用</button></form>
+        </section>
+      </section>
+    </dialog>
+
+    <dialog id="managed-rules-dialog" class="m-auto w-[min(640px,calc(100vw-32px))] rounded-2xl border border-stone-200 bg-white p-0 shadow-2xl dark:border-white/20 dark:bg-[#2c2c2e] dark:text-[#f5f5f7] dark:shadow-[0_28px_90px_rgba(0,0,0,.72)] dark:backdrop:bg-black/60 dark:backdrop:backdrop-blur-md">
+      <section class="p-6 sm:p-7"><header class="flex items-start justify-between gap-5"><div><p class="text-xs font-extrabold tracking-[.18em] text-stone-400 dark:text-white/40">DEFAULT RULES</p><h2 class="mt-1 text-2xl font-black tracking-[-.03em]">默认分流规则</h2><p class="mt-2 text-sm text-stone-500 dark:text-white/65">通常无需调整。高级用户可以修改某一组规则，修改后可随时恢复产品默认。</p></div><button id="managed-rules-close" class="grid size-10 place-items-center rounded-xl border border-stone-200 text-xl text-stone-500 transition hover:bg-stone-50 dark:border-white/15 dark:text-white/65 dark:hover:bg-white/8" type="button" aria-label="关闭默认规则管理">×</button></header><div id="managed-rule-list" class="mt-6 grid gap-3"></div></section>
+    </dialog>
+
+    <dialog id="rule-editor-dialog" class="m-auto w-[min(720px,calc(100vw-32px))] rounded-2xl border border-stone-200 bg-white p-0 shadow-2xl dark:border-white/20 dark:bg-[#2c2c2e] dark:text-[#f5f5f7] dark:shadow-[0_28px_90px_rgba(0,0,0,.72)] dark:backdrop:bg-black/60 dark:backdrop:backdrop-blur-md">
+      <form id="rule-editor-form" class="p-6 sm:p-7"><header class="flex items-start justify-between gap-5"><div><p id="rule-editor-kicker" class="text-xs font-extrabold tracking-[.18em] text-stone-400 dark:text-white/40">CUSTOM RULE</p><h2 id="rule-editor-title" class="mt-1 text-2xl font-black tracking-[-.03em]">编辑规则</h2></div><button id="rule-editor-close" class="grid size-10 place-items-center rounded-xl border border-stone-200 text-xl text-stone-500 transition hover:bg-stone-50 dark:border-white/15 dark:text-white/65 dark:hover:bg-white/8" type="button" aria-label="关闭编辑器">×</button></header>
+        <div class="mt-6 grid gap-4 md:grid-cols-2"><label><span class="mb-2 block text-sm font-bold text-stone-700 dark:text-white/90">规则名称</span><input id="rule-editor-name" class="w-full rounded-xl border border-stone-300 px-4 py-3 text-[15px] outline-none focus:border-stone-500 dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7] dark:focus:border-[#0a84ff]" autocomplete="off" required /></label><label><span class="mb-2 block text-sm font-bold text-stone-700 dark:text-white/90">连接方式</span><select id="rule-editor-action" class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-[15px] dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7]"><option value="PROXY">代理</option><option value="DIRECT">直连</option></select></label><label><span class="mb-2 block text-sm font-bold text-stone-700 dark:text-white/90">订阅地址</span><input id="rule-editor-url" class="w-full rounded-xl border border-stone-300 px-4 py-3 text-[15px] outline-none focus:border-stone-500 dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7] dark:placeholder:text-white/30 dark:focus:border-[#0a84ff]" type="url" placeholder="https://example.com/rules.yaml" /></label><label><span class="mb-2 block text-sm font-bold text-stone-700 dark:text-white/90">内容策略</span><select id="rule-editor-source-strategy" class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-[15px] dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7]"><option value="local-first">本地优先</option><option value="subscription-first">订阅优先</option><option value="merge">合并</option></select></label></div>
+        <p id="rule-editor-hint" class="mt-4 rounded-xl bg-stone-50 px-4 py-3 text-sm text-stone-500 dark:bg-[#242426] dark:text-white/65">自定义规则会在默认规则之前编译，因此可以明确覆盖产品默认行为。</p>
+        <label class="mt-5 block"><span class="mb-2 block text-sm font-bold text-stone-700 dark:text-white/90">本地规则内容</span><textarea id="rule-editor-content" class="min-h-40 w-full resize-y rounded-xl border border-stone-300 px-4 py-3 font-mono text-sm leading-6 outline-none focus:border-stone-500 dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7] dark:placeholder:text-white/30 dark:focus:border-[#0a84ff]" placeholder="推荐一行一个：+.example.com&#10;example.org"></textarea><small class="mt-2 block text-sm text-stone-400 dark:text-white/40">无需写 payload；同时兼容 YAML payload 与 DOMAIN / DOMAIN-SUFFIX 等格式。</small></label>
+        <p id="rule-editor-meta" class="mt-3 text-sm text-stone-400 dark:text-white/40"></p>
+        <footer class="mt-6 flex flex-wrap items-center justify-between gap-3"><button id="rule-editor-delete" class="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-extrabold text-red-700 dark:border-[#ff453a]/40 dark:bg-[#ff453a]/15 dark:text-[#ff453a]" type="button">删除规则</button><span class="flex flex-wrap gap-2"><button id="rule-editor-refresh" class="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600 dark:border-white/15 dark:bg-[#2c2c2e] dark:text-white/70" type="button">立即下载</button><button id="rule-editor-cancel" class="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-extrabold text-stone-600 dark:border-white/15 dark:bg-[#2c2c2e] dark:text-white/70" type="button">取消</button><button class="rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-extrabold text-white dark:bg-[#0a84ff]" type="submit">保存规则</button></span></footer>
       </form>
     </dialog>
 

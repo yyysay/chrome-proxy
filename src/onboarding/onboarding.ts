@@ -27,6 +27,14 @@ interface RuntimeResponse<T = unknown> {
   error?: string;
 }
 
+interface NetworkInfoResult {
+  direct?: { ip: string };
+  proxy?: { ip: string };
+  directError?: string;
+  proxyError?: string;
+  sameExitIp: boolean;
+}
+
 function requiredElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
   if (!element) throw new Error(`引导页面缺少必要元素：${selector}`);
@@ -37,11 +45,22 @@ const subscriptionForm = requiredElement<HTMLFormElement>("#onboarding-subscript
 const subscriptionUrlInput = requiredElement<HTMLInputElement>("#onboarding-subscription-url");
 const subscriptionHint = requiredElement<HTMLElement>("#subscription-step-hint");
 const saveSubscriptionButton = requiredElement<HTMLButtonElement>("#save-subscription");
-const savedSubscriptionPreview = requiredElement<HTMLElement>("#saved-subscription-preview");
 const enableButton = requiredElement<HTMLButtonElement>("#enable-proxy");
 const enableHint = requiredElement<HTMLElement>("#enable-step-hint");
 const closeButton = requiredElement<HTMLButtonElement>("#close-page");
 const settingsButton = requiredElement<HTMLButtonElement>("#open-settings");
+const healthCard = requiredElement<HTMLElement>("#onboarding-health");
+const healthTitle = requiredElement<HTMLElement>("#onboarding-health-title");
+const healthSummary = requiredElement<HTMLElement>("#onboarding-health-summary");
+const healthDot = requiredElement<HTMLElement>("#onboarding-health-dot");
+const healthActions = requiredElement<HTMLElement>("#onboarding-health-actions");
+const directIp = requiredElement<HTMLElement>("#onboarding-direct-ip");
+const proxyIp = requiredElement<HTMLElement>("#onboarding-proxy-ip");
+const backToSubscriptionButton = requiredElement<HTMLButtonElement>("#back-to-subscription");
+const showManualProxyButton = requiredElement<HTMLButtonElement>("#show-manual-proxy");
+const manualForm = requiredElement<HTMLFormElement>("#onboarding-manual-form");
+const manualHost = requiredElement<HTMLInputElement>("#onboarding-manual-host");
+const manualPort = requiredElement<HTMLInputElement>("#onboarding-manual-port");
 const stepButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-step-nav]"));
 const stepPanels = Array.from(document.querySelectorAll<HTMLElement>("[data-step-panel]"));
 
@@ -57,12 +76,12 @@ function setStepButtonState(button: HTMLButtonElement, step: number): void {
   const unlocked = step <= maxUnlockedStep;
   button.disabled = !unlocked;
   button.className = [
-    "step-nav rounded-2xl border px-4 py-4 text-left transition",
+    "step-nav rounded-xl border px-3 py-3 text-left transition",
     active
-      ? "border-stone-900 bg-stone-900 text-white shadow-lg shadow-stone-900/10"
+      ? "border-stone-900 bg-stone-900 text-white shadow-lg shadow-stone-900/10 dark:border-[#0a84ff] dark:bg-[#0a84ff] dark:shadow-black/20"
       : unlocked
-        ? "border-stone-200 bg-white text-stone-900 hover:border-stone-300 hover:bg-stone-50"
-        : "cursor-not-allowed border-stone-200 bg-stone-50 text-stone-400 opacity-70",
+        ? "border-stone-200 bg-white text-stone-900 hover:border-stone-300 hover:bg-stone-50 dark:border-white/10 dark:bg-[#2c2c2e] dark:text-[#f5f5f7] dark:hover:border-white/25 dark:hover:bg-[#323235]"
+        : "cursor-not-allowed border-stone-200 bg-stone-50 text-stone-400 opacity-70 dark:border-white/10 dark:bg-[#242426] dark:text-white/35",
   ].join(" ");
 
   const index = button.querySelector<HTMLElement>(".step-index");
@@ -70,15 +89,15 @@ function setStepButtonState(button: HTMLButtonElement, step: number): void {
   index.className = [
     "step-index grid size-8 place-items-center rounded-full text-sm font-black transition",
     active
-      ? "bg-white text-stone-900"
+      ? "bg-white text-stone-900 dark:text-[#0a84ff]"
       : step < maxUnlockedStep
-        ? "bg-emerald-100 text-emerald-700"
-        : "bg-stone-200 text-stone-600",
+        ? "bg-emerald-100 text-emerald-700 dark:bg-[#30d158]/15 dark:text-[#30d158]"
+        : "bg-stone-200 text-stone-600 dark:bg-white/10 dark:text-white/65",
   ].join(" ");
   index.textContent = step < maxUnlockedStep ? "✓" : String(step);
 
   const small = button.querySelector("small");
-  if (small) small.className = `block text-xs ${active ? "text-white/60" : "text-stone-400"}`;
+  if (small) small.className = `block text-xs ${active ? "text-white/60" : "text-stone-400 dark:text-white/40"}`;
 }
 
 function showStep(step: number): void {
@@ -107,12 +126,55 @@ async function requestUrlPermission(url: string): Promise<void> {
 
 function setSubscriptionHint(message: string, error = false): void {
   subscriptionHint.textContent = message;
-  subscriptionHint.className = `text-sm ${error ? "text-red-600" : "text-stone-400"}`;
+  subscriptionHint.className = `text-sm ${error ? "text-red-600 dark:text-[#ff6961]" : "text-stone-400 dark:text-white/40"}`;
 }
 
 function setEnableHint(message: string, error = false): void {
   enableHint.textContent = message;
-  enableHint.className = `text-sm ${error ? "text-red-600" : "text-stone-400"}`;
+  enableHint.className = `text-sm ${error ? "text-red-600 dark:text-[#ff6961]" : "text-stone-400 dark:text-white/40"}`;
+}
+
+async function runHealthCheck(): Promise<boolean> {
+  healthCard.className = "mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 dark:border-[#ff9f0a]/40 dark:bg-[#ff9f0a]/15";
+  healthTitle.className = "block text-sm text-amber-800 dark:text-[#ff9f0a]";
+  healthTitle.textContent = "正在检测代理…";
+  healthSummary.className = "mt-1 block text-xs text-amber-700 dark:text-[#ffb340]";
+  healthSummary.textContent = "请稍候，正在比较直连与代理出口。";
+  healthDot.className = "size-2.5 shrink-0 rounded-full bg-amber-500 dark:bg-[#ff9f0a]";
+  directIp.textContent = "检测中";
+  proxyIp.textContent = "检测中";
+  healthActions.hidden = true;
+  manualForm.hidden = true;
+  enableButton.disabled = true;
+
+  const response = await sendMessage<NetworkInfoResult>({ type: "GET_NETWORK_INFO" });
+  const data = response.data;
+  const healthy = Boolean(response.ok && data?.direct && data.proxy && !data.sameExitIp);
+  directIp.textContent = data?.direct?.ip ?? "获取失败";
+  proxyIp.textContent = data?.proxy?.ip ?? "获取失败";
+
+  if (healthy) {
+    healthCard.className = "mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 dark:border-[#30d158]/35 dark:bg-[#30d158]/15";
+    healthTitle.className = "block text-sm text-emerald-800 dark:text-[#30d158]";
+    healthTitle.textContent = "代理检测通过";
+    healthSummary.className = "mt-1 block text-xs text-emerald-700 dark:text-[#66dc7f]";
+    healthSummary.textContent = "代理出口与本地直连不同，可以继续开启。";
+    healthDot.className = "size-2.5 shrink-0 rounded-full bg-emerald-500 dark:bg-[#30d158]";
+    enableButton.disabled = false;
+    setEnableHint("检测通过，可以开启。");
+    return true;
+  }
+
+  healthCard.className = "mt-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 dark:border-[#ff453a]/40 dark:bg-[#ff453a]/15";
+  healthTitle.className = "block text-sm text-red-800 dark:text-[#ff6961]";
+  healthTitle.textContent = "代理检测未通过";
+  healthSummary.className = "mt-1 block text-xs text-red-700 dark:text-[#ff6961]";
+  healthSummary.textContent = data?.proxyError || data?.directError ||
+    (data?.sameExitIp ? "代理出口与本地直连相同。" : response.error) || "请检查代理配置。";
+  healthDot.className = "size-2.5 shrink-0 rounded-full bg-red-500 dark:bg-[#ff453a]";
+  healthActions.hidden = false;
+  setEnableHint("请先修正代理配置，再继续开启。", true);
+  return false;
 }
 
 subscriptionForm.addEventListener("submit", (event) => {
@@ -135,9 +197,9 @@ subscriptionForm.addEventListener("submit", (event) => {
     const modeResponse = await sendMessage({ type: "SET_PROXY_SOURCE_MODE", mode: "subscription" });
     if (!modeResponse.ok) throw new Error(modeResponse.error ?? "切换到代理订阅失败");
 
-    savedSubscriptionPreview.textContent = response.data.state.subscriptionUrl;
     setSubscriptionHint("订阅已保存并成功加载。");
     unlockStep(2);
+    await runHealthCheck();
   })().catch((error: unknown) => {
     setSubscriptionHint(error instanceof Error ? error.message : "代理订阅保存失败", true);
   }).finally(() => {
@@ -171,6 +233,27 @@ settingsButton.addEventListener("click", () => {
   void chrome.runtime.openOptionsPage();
 });
 
+backToSubscriptionButton.addEventListener("click", () => showStep(1));
+showManualProxyButton.addEventListener("click", () => {
+  manualForm.hidden = false;
+  manualHost.focus();
+});
+
+manualForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  void (async () => {
+    const host = manualHost.value.trim();
+    const port = Number(manualPort.value);
+    if (!host || host.includes("://") || host.includes("/")) throw new Error("请输入正确的 IP 或主机名");
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("端口必须是 1 到 65535 的整数");
+    const response = await sendMessage({ type: "SAVE_MANUAL_PROXY", host, port });
+    if (!response.ok) throw new Error(response.error ?? "本地代理保存失败");
+    await runHealthCheck();
+  })().catch((error: unknown) => {
+    healthSummary.textContent = error instanceof Error ? error.message : "本地代理保存失败";
+  });
+});
+
 closeButton.addEventListener("click", () => {
   window.close();
 });
@@ -186,7 +269,6 @@ async function initialize(): Promise<void> {
   subscriptionUrlInput.value = provider?.subscriptionUrl || DEFAULT_PROXY_SUBSCRIPTION_URL;
 
   if (provider?.subscription) {
-    savedSubscriptionPreview.textContent = provider.subscriptionUrl;
     maxUnlockedStep = 2;
   }
   if (status?.applied || status?.desiredEnabled) {
@@ -195,6 +277,7 @@ async function initialize(): Promise<void> {
     return;
   }
   showStep(provider?.subscription ? 2 : 1);
+  if (provider?.subscription) await runHealthCheck();
 }
 
 void initialize().catch((error: unknown) => {

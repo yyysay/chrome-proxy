@@ -28,9 +28,10 @@ const LAST_PROXY_ERROR_KEY = "lastProxyError";
 const DIAGNOSTIC_EVENTS_KEY = "diagnosticEvents";
 const RULE_REFRESH_ALARM = "refresh-enabled-rules";
 const PROXY_SUBSCRIPTION_REFRESH_ALARM = "refresh-proxy-subscription";
-const PROXY_SUBSCRIPTION_REFRESH_MINUTES = 6 * 60;
+const PROXY_SUBSCRIPTION_REFRESH_INTERVAL_KEY = "proxySubscriptionRefreshIntervalHours";
 const AUTO_REFRESH_ENABLED_KEY = "autoRuleRefreshEnabled";
 const AUTO_REFRESH_INTERVAL_KEY = "autoRuleRefreshIntervalHours";
+const NETWORK_INFO_CACHE_KEY = "networkInfoCache";
 const ALLOWED_REFRESH_INTERVAL_HOURS = new Set([6, 12, 24, 168]);
 const MAX_DIAGNOSTIC_EVENTS = 30;
 
@@ -50,6 +51,7 @@ type RuntimeMessage =
   | { type: "SAVE_MANUAL_PROXY"; host: string; port: number }
   | { type: "SAVE_PROXY_SUBSCRIPTION"; url: string }
   | { type: "REFRESH_PROXY_SUBSCRIPTION" }
+  | { type: "UPDATE_PROXY_SUBSCRIPTION_REFRESH"; intervalHours: number }
   | { type: "UPDATE_RULE_PACKS"; enabledPackIds: string[] }
   | { type: "UPDATE_FALLBACK_MODE"; fallbackMode: "direct" | "proxy" | "system" }
   | { type: "GET_NETWORK_INFO" }
@@ -208,9 +210,26 @@ async function syncProxySubscriptionAlarm(): Promise<void> {
     await chrome.alarms.clear(PROXY_SUBSCRIPTION_REFRESH_ALARM);
     return;
   }
+  const stored = await chrome.storage.local.get(PROXY_SUBSCRIPTION_REFRESH_INTERVAL_KEY);
+  const intervalHours = normalizeRefreshIntervalHours(
+    stored[PROXY_SUBSCRIPTION_REFRESH_INTERVAL_KEY] ?? 6,
+  );
   await chrome.alarms.create(PROXY_SUBSCRIPTION_REFRESH_ALARM, {
-    periodInMinutes: PROXY_SUBSCRIPTION_REFRESH_MINUTES,
+    periodInMinutes: intervalHours * 60,
   });
+}
+
+async function updateProxySubscriptionRefreshInterval(
+  intervalHours: number,
+): Promise<number> {
+  if (!ALLOWED_REFRESH_INTERVAL_HOURS.has(intervalHours)) {
+    throw new Error("代理订阅更新时间无效");
+  }
+  await chrome.storage.local.set({
+    [PROXY_SUBSCRIPTION_REFRESH_INTERVAL_KEY]: intervalHours,
+  });
+  await syncProxySubscriptionAlarm();
+  return intervalHours;
 }
 
 function pointToSegmentDistance(
@@ -546,6 +565,17 @@ async function handleMessage(message: RuntimeMessage): Promise<RuntimeResponse> 
       };
     }
 
+    case "UPDATE_PROXY_SUBSCRIPTION_REFRESH": {
+      const intervalHours = await updateProxySubscriptionRefreshInterval(
+        message.intervalHours,
+      );
+      return {
+        ok: true,
+        data: { intervalHours },
+        message: `代理订阅将每 ${intervalHours} 小时更新`,
+      };
+    }
+
 
     case "UPDATE_RULE_PACKS": {
       const result = await updateEnabledRulePacks(message.enabledPackIds);
@@ -625,6 +655,19 @@ async function handleMessage(message: RuntimeMessage): Promise<RuntimeResponse> 
         // 即使两个探测都失败，也把各自错误返回给设置页。
         // “两个 API 都失败”不等同于可以断言设备完全无网络。
         const sameExitIp = Boolean(direct && proxy && direct.ip === proxy.ip);
+
+        await chrome.storage.local.set({
+          [NETWORK_INFO_CACHE_KEY]: {
+            host: config.host,
+            port: config.port,
+            checkedAt: new Date().toISOString(),
+            direct,
+            proxy,
+            directError,
+            proxyError,
+            sameExitIp,
+          },
+        });
 
         return {
           ok: true,
