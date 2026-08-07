@@ -3,13 +3,11 @@ import {
   DEFAULT_ENABLED_RULE_PACK_IDS,
 } from "../rule-packs/catalog";
 import { compileRulePacks } from "../rule-packs/compiler";
-import {
-  analyzeProviderRules,
-  normalizeProviderRules,
-} from "../rule-packs/provider-parser";
+import { analyzeProviderRules } from "../rule-packs/provider-parser";
 import type {
   RulePackDefinition,
   RulePackSourceState,
+  RuleSourceStrategy,
 } from "../rule-packs/types";
 import { buildPacScript, ruleMatchesHostname } from "./pac-builder";
 
@@ -17,17 +15,21 @@ const PROXY_CONFIG_KEY = "proxyConfig";
 const PROXY_STATE_KEY = "proxyState";
 const PROXY_EVENT_KEY = "lastProxyEvent";
 const ENABLED_RULE_PACK_IDS_KEY = "enabledRulePackIds";
+const SIMPLE_ENABLED_RULE_PACK_IDS_KEY = "simpleEnabledRulePackIds";
+const UI_MODE_KEY = "uiMode";
 const LAST_PROXY_ERROR_KEY = "lastProxyError";
 const FALLBACK_MODE_KEY = "fallbackMode";
 const RULE_PACK_SOURCES_KEY = "rulePackSources";
 const RULE_PACK_DEFINITIONS_KEY = "rulePackDefinitions";
 const RULE_ENGINE_STATUS_KEY = "ruleEngineStatus";
+const LEGACY_RULE_SOURCE_STRATEGIES_KEY = "ruleSourceStrategies";
 const MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024;
 const MAX_RULES = 20_000;
 const MAX_PAC_BYTES = 1_500_000;
 const DOWNLOAD_TIMEOUT_MS = 15_000;
 
 export type FallbackMode = "direct" | "proxy" | "system";
+export type UiMode = "simple" | "expert";
 
 export interface ProxyConfig {
   type: "http";
@@ -141,11 +143,37 @@ async function loadEnabledRulePackIds(): Promise<string[]> {
   return value.filter((id): id is string => typeof id === "string");
 }
 
+async function loadSimpleEnabledRulePackIds(): Promise<string[]> {
+  const stored = await chrome.storage.local.get(SIMPLE_ENABLED_RULE_PACK_IDS_KEY);
+  const value = stored[SIMPLE_ENABLED_RULE_PACK_IDS_KEY] as unknown;
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((id): id is string => typeof id === "string");
+}
+
+async function loadUiMode(): Promise<UiMode> {
+  const stored = await chrome.storage.local.get(UI_MODE_KEY);
+  return stored[UI_MODE_KEY] === "expert" ? "expert" : "simple";
+}
+
+async function loadActiveEnabledRulePackIds(): Promise<string[]> {
+  return (await loadUiMode()) === "expert"
+    ? loadEnabledRulePackIds()
+    : loadSimpleEnabledRulePackIds();
+}
+
 async function loadFallbackMode(): Promise<FallbackMode> {
   const stored = await chrome.storage.local.get(FALLBACK_MODE_KEY);
   const value = stored[FALLBACK_MODE_KEY] as unknown;
 
   return value === "proxy" || value === "system" ? value : "direct";
+}
+
+async function loadActiveFallbackMode(): Promise<FallbackMode> {
+  return (await loadUiMode()) === "simple" ? "direct" : loadFallbackMode();
 }
 
 type RulePackSources = Record<string, RulePackSourceState>;
@@ -168,6 +196,64 @@ async function loadRulePackSources(): Promise<RulePackSources> {
 
 async function saveRulePackSources(sources: RulePackSources): Promise<void> {
   await chrome.storage.local.set({ [RULE_PACK_SOURCES_KEY]: sources });
+}
+
+function normalizeRuleSourceStrategy(value: unknown): RuleSourceStrategy {
+  return value === "local-first" || value === "subscription-first" || value === "merge"
+    ? value
+    : "merge";
+}
+
+function buildRulePackContent(
+  pack: RulePackDefinition,
+  source: RulePackSourceState | undefined,
+): {
+  rulesText: string;
+  ignored: number;
+  sourceStrategy: RuleSourceStrategy;
+} {
+  const sourceStrategy = normalizeRuleSourceStrategy(source?.sourceStrategy);
+  const localContent = source?.customContent?.trim() ?? "";
+  const subscriptionContent =
+    source?.cachedContent?.trim() || pack.rulesText?.trim() || "";
+
+  let selectedContents: string[];
+
+  if (sourceStrategy === "local-first") {
+    selectedContents = localContent ? [localContent] : subscriptionContent ? [subscriptionContent] : [];
+  } else if (sourceStrategy === "subscription-first") {
+    selectedContents = subscriptionContent
+      ? [subscriptionContent]
+      : localContent
+        ? [localContent]
+        : [];
+  } else {
+    selectedContents = [localContent, subscriptionContent].filter(Boolean);
+  }
+
+  const seen = new Set<string>();
+  const normalizedLines: string[] = [];
+  let ignored = 0;
+
+  for (const content of selectedContents) {
+    const analyzed = analyzeProviderRules(content, pack.defaultAction);
+    ignored += analyzed.ignored;
+
+    for (const line of analyzed.rulesText.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || seen.has(trimmed)) {
+        continue;
+      }
+      seen.add(trimmed);
+      normalizedLines.push(trimmed);
+    }
+  }
+
+  return {
+    rulesText: normalizedLines.join("\n"),
+    ignored,
+    sourceStrategy,
+  };
 }
 
 async function refreshRulePackSource(packId: string): Promise<void> {
@@ -259,12 +345,10 @@ async function loadRuntimeCatalog() {
   ]);
 
   return definitions.map((pack) => {
-    const state = sources[pack.id];
-    const content = state?.customContent || state?.cachedContent || pack.rulesText || "";
-
+    const runtime = buildRulePackContent(pack, sources[pack.id]);
     return {
       ...pack,
-      rulesText: normalizeProviderRules(content, pack.defaultAction),
+      rulesText: runtime.rulesText,
     };
   });
 }
@@ -281,8 +365,8 @@ async function createPacConfig(
   };
 }> {
   const [enabledPackIds, fallbackMode] = await Promise.all([
-    loadEnabledRulePackIds(),
-    loadFallbackMode(),
+    loadActiveEnabledRulePackIds(),
+    loadActiveFallbackMode(),
   ]);
   const compiled = compileRulePacks(await loadRuntimeCatalog(), enabledPackIds);
 
@@ -386,7 +470,7 @@ async function applyPac(config: ProxyConfig): Promise<void> {
 }
 
 async function applySelectedMode(): Promise<void> {
-  const fallbackMode = await loadFallbackMode();
+  const fallbackMode = await loadActiveFallbackMode();
 
   if (fallbackMode === "system") {
     await chrome.proxy.settings.clear({ scope: "regular" });
@@ -439,7 +523,7 @@ export async function reconcileProxy(
 
   const [current, fallbackMode] = await Promise.all([
     readEffectiveSetting(),
-    loadFallbackMode(),
+    loadActiveFallbackMode(),
   ]);
 
   if (fallbackMode === "system") {
@@ -486,16 +570,22 @@ export async function updateEnabledRulePacks(
   pacReapplied: boolean;
 }> {
   const definitions = await loadRulePackDefinitions();
-  const knownIds = new Set(definitions.map((pack) => pack.id));
-  const enabledPackIds = requestedIds.filter((id) => knownIds.has(id));
+  const definitionById = new Map(definitions.map((pack) => [pack.id, pack]));
+  const enabledPackIds = requestedIds.filter((id) => definitionById.has(id));
 
   const [previousEnabledIds, sources] = await Promise.all([
     loadEnabledRulePackIds(),
     loadRulePackSources(),
   ]);
-  const remoteIds = enabledPackIds.filter(
-    (id) => !sources[id]?.customContent && !sources[id]?.cachedContent,
-  );
+
+  const remoteIds = enabledPackIds.filter((id) => {
+    const pack = definitionById.get(id);
+    if (!pack) return false;
+
+    const source = sources[id];
+    const url = source?.url || pack.defaultUrl;
+    return Boolean(url) && !source?.cachedContent;
+  });
   await Promise.all(remoteIds.map(refreshRulePackSource));
 
   await chrome.storage.local.set({
@@ -519,30 +609,97 @@ export async function updateEnabledRulePacks(
   };
 }
 
+export async function updateSimpleEnabledRulePacks(
+  requestedIds: readonly string[],
+): Promise<{
+  enabledPackIds: string[];
+  pacReapplied: boolean;
+}> {
+  const definitions = await loadRulePackDefinitions();
+  const definitionById = new Map(definitions.map((pack) => [pack.id, pack]));
+  const enabledPackIds = requestedIds.filter((id) => definitionById.has(id));
+
+  const [previousEnabledIds, sources] = await Promise.all([
+    loadSimpleEnabledRulePackIds(),
+    loadRulePackSources(),
+  ]);
+
+  const remoteIds = enabledPackIds.filter((id) => {
+    const pack = definitionById.get(id);
+    if (!pack) return false;
+    const source = sources[id];
+    const url = source?.url || pack.defaultUrl;
+    return Boolean(url) && !source?.cachedContent;
+  });
+  await Promise.all(remoteIds.map(refreshRulePackSource));
+
+  await chrome.storage.local.set({
+    [SIMPLE_ENABLED_RULE_PACK_IDS_KEY]: enabledPackIds,
+  });
+
+  let pacReapplied = false;
+  try {
+    if ((await loadUiMode()) === "simple") {
+      pacReapplied = await reconcileProxy("simpleRulePacks.updated", true);
+    }
+  } catch (error) {
+    await chrome.storage.local.set({
+      [SIMPLE_ENABLED_RULE_PACK_IDS_KEY]: previousEnabledIds,
+    });
+    throw error;
+  }
+
+  return { enabledPackIds, pacReapplied };
+}
+
+export async function updateUiMode(
+  mode: UiMode,
+): Promise<{ mode: UiMode; pacReapplied: boolean }> {
+  const previousMode = await loadUiMode();
+  if (previousMode === mode) {
+    return { mode, pacReapplied: false };
+  }
+
+  await chrome.storage.local.set({ [UI_MODE_KEY]: mode });
+  try {
+    const pacReapplied = await reconcileProxy("uiMode.updated", true);
+    return { mode, pacReapplied };
+  } catch (error) {
+    await chrome.storage.local.set({ [UI_MODE_KEY]: previousMode });
+    await reconcileProxy("uiMode.rollback", true).catch(() => false);
+    throw error;
+  }
+}
+
 export async function getRulePackSettings() {
-  const [sources, enabledIds, definitions] = await Promise.all([
+  const [sources, enabledIds, simpleEnabledIds, definitions] = await Promise.all([
     loadRulePackSources(),
     loadEnabledRulePackIds(),
+    loadSimpleEnabledRulePackIds(),
     loadRulePackDefinitions(),
   ]);
 
   return definitions.map((pack) => {
     const source = sources[pack.id] ?? {};
-    const content = source.customContent || source.cachedContent || pack.rulesText || "";
-    const analyzed = analyzeProviderRules(content, pack.defaultAction);
+    const runtime = buildRulePackContent(pack, source);
     const runtimePack = {
       ...pack,
-      rulesText: analyzed.rulesText,
+      rulesText: runtime.rulesText,
     };
     const validation = compileRulePacks([runtimePack], [pack.id]).statistics;
 
     return {
       ...pack,
       enabled: enabledIds.includes(pack.id),
-      source,
+      simpleEnabled: simpleEnabledIds.includes(pack.id),
+      sourceStrategy: runtime.sourceStrategy,
+      source: {
+        ...source,
+        sourceStrategy: runtime.sourceStrategy,
+      },
       validation: {
         effective: validation.effective,
-        ignored: analyzed.ignored + validation.issues,
+        ignored: runtime.ignored + validation.issues,
       },
     };
   });
@@ -574,8 +731,8 @@ export async function testRuleMatch(input: string): Promise<{
   }
 
   const [enabledIds, fallbackMode] = await Promise.all([
-    loadEnabledRulePackIds(),
-    loadFallbackMode(),
+    loadActiveEnabledRulePackIds(),
+    loadActiveFallbackMode(),
   ]);
   const compiled = compileRulePacks(await loadRuntimeCatalog(), enabledIds);
   const matchedRule = compiled.rules.find((rule) => ruleMatchesHostname(rule, hostname));
@@ -604,9 +761,18 @@ export async function saveRulePack(
   url: string,
   action: "DIRECT" | "PROXY",
   customContent: string,
+  sourceStrategy: RuleSourceStrategy = "merge",
 ): Promise<string> {
   if (!name.trim()) {
     throw new Error("规则名称不能为空");
+  }
+
+  const normalizedStrategy = normalizeRuleSourceStrategy(sourceStrategy);
+  const normalizedUrl = url.trim();
+  const normalizedCustomContent = customContent.trim();
+
+  if (!normalizedUrl && !normalizedCustomContent) {
+    throw new Error("订阅地址和本地规则内容至少填写一项");
   }
 
   const [definitions, previousSources] = await Promise.all([
@@ -619,9 +785,9 @@ export async function saveRulePack(
   const definition = {
     id,
     name: name.trim(),
-    description: "自定义远程规则",
+    description: "自定义规则",
     enabledByDefault: false,
-    defaultUrl: url.trim(),
+    defaultUrl: normalizedUrl,
     defaultAction: action,
   } as const;
 
@@ -633,16 +799,32 @@ export async function saveRulePack(
   await saveRulePackDefinitions(definitions);
 
   const sources = { ...previousSources };
+  const previousSource = sources[id] ?? {};
+  const previousDefinition = existingIndex >= 0 ? previousDefinitions[existingIndex] : undefined;
+  const previousUrl = previousSource.url || previousDefinition?.defaultUrl || "";
+  const remoteSourceChanged = previousUrl !== normalizedUrl;
+
   sources[id] = {
-    ...sources[id],
-    url: url.trim(),
-    customContent: customContent.trim() || undefined,
+    ...previousSource,
+    sourceStrategy: normalizedStrategy,
+    url: normalizedUrl,
+    customContent: normalizedCustomContent || undefined,
+    cachedContent: remoteSourceChanged || !normalizedUrl
+      ? undefined
+      : previousSource.cachedContent,
+    updatedAt: remoteSourceChanged || !normalizedUrl
+      ? undefined
+      : previousSource.updatedAt,
+    modifiedAt: new Date().toISOString(),
     error: undefined,
   };
   await saveRulePackSources(sources);
 
   try {
-    if (!customContent.trim()) {
+    // 只要配置了订阅地址，就维护一份远程缓存。
+    // local-first 会优先使用本地内容，但订阅仍可后台保持新鲜；
+    // subscription-first / merge 则会直接消费这份缓存。
+    if (normalizedUrl && (remoteSourceChanged || !sources[id].cachedContent)) {
       await refreshRulePackSource(id);
     }
 
@@ -657,37 +839,34 @@ export async function saveRulePack(
   return id;
 }
 
-export async function reorderRulePacks(orderedIds: readonly string[]): Promise<void> {
-  const definitions = await loadRulePackDefinitions();
-  const byId = new Map(definitions.map((pack) => [pack.id, pack]));
-  const ordered = orderedIds
-    .map((id) => byId.get(id))
-    .filter((pack): pack is RulePackDefinition => Boolean(pack));
-  const included = new Set(ordered.map((pack) => pack.id));
-  ordered.push(...definitions.filter((pack) => !included.has(pack.id)));
-  await saveRulePackDefinitions(ordered);
-  try {
-    await reconcileProxy("rulePacks.reordered", true);
-  } catch (error) {
-    await saveRulePackDefinitions(definitions);
-    throw error;
-  }
-}
-
 export async function refreshEnabledRulePacks(): Promise<{
   refreshed: number;
   cached: number;
   skipped: number;
 }> {
-  const enabledIds = await loadEnabledRulePackIds();
+  const [expertEnabledIds, simpleEnabledIds, definitions, sources] = await Promise.all([
+    loadEnabledRulePackIds(),
+    loadSimpleEnabledRulePackIds(),
+    loadRulePackDefinitions(),
+    loadRulePackSources(),
+  ]);
+  const enabledIds = [...new Set([...expertEnabledIds, ...simpleEnabledIds])];
+  const definitionById = new Map(definitions.map((pack) => [pack.id, pack]));
   let refreshed = 0;
   let cached = 0;
   let skipped = 0;
 
   for (const id of enabledIds) {
-    const before = (await loadRulePackSources())[id];
+    const pack = definitionById.get(id);
+    if (!pack) {
+      skipped += 1;
+      continue;
+    }
 
-    if (before?.customContent) {
+    const before = sources[id];
+    const url = before?.url || pack.defaultUrl;
+
+    if (!url) {
       skipped += 1;
       continue;
     }
@@ -695,7 +874,7 @@ export async function refreshEnabledRulePacks(): Promise<{
     try {
       await refreshRulePackSource(id);
       const state = (await loadRulePackSources())[id];
-      if (state?.status === "cached") {
+      if (state?.status === "cached" || state?.status === "error") {
         cached += 1;
       } else {
         refreshed += 1;
@@ -710,25 +889,53 @@ export async function refreshEnabledRulePacks(): Promise<{
 }
 
 export async function migrateStoredData(): Promise<void> {
-  const [definitions, enabledIds, sources, stored] = await Promise.all([
+  const [definitions, enabledIds, simpleEnabledIds, sources, stored] = await Promise.all([
     loadRulePackDefinitions(),
     loadEnabledRulePackIds(),
+    loadSimpleEnabledRulePackIds(),
     loadRulePackSources(),
-    chrome.storage.local.get("schemaVersion"),
+    chrome.storage.local.get([
+      "schemaVersion",
+      LEGACY_RULE_SOURCE_STRATEGIES_KEY,
+    ]),
   ]);
 
-  if (stored.schemaVersion === 1) {
+  if (stored.schemaVersion === 3) {
     return;
   }
 
   const knownIds = new Set(definitions.map((pack) => pack.id));
+  const legacyStrategies =
+    stored[LEGACY_RULE_SOURCE_STRATEGIES_KEY] &&
+    typeof stored[LEGACY_RULE_SOURCE_STRATEGIES_KEY] === "object"
+      ? stored[LEGACY_RULE_SOURCE_STRATEGIES_KEY] as Record<string, unknown>
+      : {};
+
+  const migratedSources: RulePackSources = {};
+
+  for (const pack of definitions) {
+    const source = sources[pack.id];
+    const legacyStrategy = legacyStrategies[pack.id];
+
+    if (!source && legacyStrategy === undefined) {
+      continue;
+    }
+
+    migratedSources[pack.id] = {
+      ...(source ?? {}),
+      sourceStrategy: normalizeRuleSourceStrategy(
+        source?.sourceStrategy ?? legacyStrategy,
+      ),
+    };
+  }
+
   await chrome.storage.local.set({
-    schemaVersion: 1,
+    schemaVersion: 3,
     [ENABLED_RULE_PACK_IDS_KEY]: enabledIds.filter((id) => knownIds.has(id)),
-    [RULE_PACK_SOURCES_KEY]: Object.fromEntries(
-      Object.entries(sources).filter(([id]) => knownIds.has(id)),
-    ),
+    [SIMPLE_ENABLED_RULE_PACK_IDS_KEY]: simpleEnabledIds.filter((id) => knownIds.has(id)),
+    [RULE_PACK_SOURCES_KEY]: migratedSources,
   });
+  await chrome.storage.local.remove(LEGACY_RULE_SOURCE_STRATEGIES_KEY);
 }
 
 export async function refreshRulePack(packId: string): Promise<void> {
@@ -737,10 +944,11 @@ export async function refreshRulePack(packId: string): Promise<void> {
 }
 
 export async function deleteRulePack(packId: string): Promise<void> {
-  const [definitions, sources, enabledIds] = await Promise.all([
+  const [definitions, sources, enabledIds, simpleEnabledIds] = await Promise.all([
     loadRulePackDefinitions(),
     loadRulePackSources(),
     loadEnabledRulePackIds(),
+    loadSimpleEnabledRulePackIds(),
   ]);
   try {
     await Promise.all([
@@ -750,6 +958,7 @@ export async function deleteRulePack(packId: string): Promise<void> {
       )),
       chrome.storage.local.set({
         [ENABLED_RULE_PACK_IDS_KEY]: enabledIds.filter((id) => id !== packId),
+        [SIMPLE_ENABLED_RULE_PACK_IDS_KEY]: simpleEnabledIds.filter((id) => id !== packId),
       }),
     ]);
     await reconcileProxy("rulePack.deleted", true);
@@ -757,7 +966,10 @@ export async function deleteRulePack(packId: string): Promise<void> {
     await Promise.all([
       saveRulePackDefinitions(definitions),
       saveRulePackSources(sources),
-      chrome.storage.local.set({ [ENABLED_RULE_PACK_IDS_KEY]: enabledIds }),
+      chrome.storage.local.set({
+        [ENABLED_RULE_PACK_IDS_KEY]: enabledIds,
+        [SIMPLE_ENABLED_RULE_PACK_IDS_KEY]: simpleEnabledIds,
+      }),
     ]);
     throw error;
   }
@@ -782,6 +994,34 @@ export async function updateFallbackMode(
     throw error;
   }
   return { fallbackMode, reapplied };
+}
+
+export async function beginNetworkInfoCheck(): Promise<ProxyConfig> {
+  const config = await loadProxyConfig();
+  const before = await readEffectiveSetting();
+  assertControllable(before.levelOfControl);
+
+  // 使用两个不同域名同时探测：IPIP 强制 DIRECT，其余请求在探测窗口内走当前 HTTP 代理。
+  // 这样能拿到“本地直连出口”和“代理出口”，同时避免临时检测期间把其他浏览流量意外直连。
+  const probePac: chrome.proxy.ProxyConfig = {
+    mode: "pac_script",
+    pacScript: {
+      mandatory: true,
+      data: [
+        "function FindProxyForURL(url, host) {",
+        '  if (host === "myip.ipip.net") return "DIRECT";',
+        `  return ${JSON.stringify(`PROXY ${config.host}:${config.port}`)};`,
+        "}",
+      ].join("\n"),
+    },
+  };
+
+  await chrome.proxy.settings.set({
+    value: probePac,
+    scope: "regular",
+  });
+
+  return config;
 }
 
 export async function beginProxyConnectivityCheck(): Promise<ProxyConfig> {
@@ -834,7 +1074,7 @@ export async function getProxyStatus(): Promise<ProxyStatus> {
       RULE_ENGINE_STATUS_KEY,
     ]),
     chrome.storage.local.get(PROXY_CONFIG_KEY),
-    loadFallbackMode(),
+    loadActiveFallbackMode(),
   ]);
   const config = configStored[PROXY_CONFIG_KEY] as unknown;
 

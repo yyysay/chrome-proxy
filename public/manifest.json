@@ -10,7 +10,11 @@
   ],
   "host_permissions": [
     "https://ip125.com/*",
-    "https://raw.githubusercontent.com/*"
+    "https://raw.githubusercontent.com/*",
+    "https://ip125.com/*",
+    "https://myip.ipip.net/*",
+    "https://api-ipv4.ip.sb/*",
+    "https://api.ip.sb/*"
   ],
   "optional_host_permissions": [
     "http://*/*",

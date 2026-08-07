@@ -1,5 +1,7 @@
 import type { ParsedRule, ParseIssue } from "../rules/types";
 
+export type RuleSourceStrategy = "local-first" | "subscription-first" | "merge";
+
 export interface RulePackDefinition {
   id: string;
   name: string;
@@ -11,10 +13,12 @@ export interface RulePackDefinition {
 }
 
 export interface RulePackSourceState {
+  sourceStrategy?: RuleSourceStrategy;
   url?: string;
   cachedContent?: string;
   customContent?: string;
   updatedAt?: string;
+  modifiedAt?: string;
   lastAttemptAt?: string;
   status?: "idle" | "downloading" | "ready" | "cached" | "error";
   error?: string;
