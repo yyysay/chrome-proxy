@@ -3,10 +3,15 @@ import test from "node:test";
 
 import { buildPacScript, ruleMatchesHostname } from "../src/proxy/pac-builder.ts";
 import {
+  BUILTIN_RULE_PACKS,
   DEFAULT_RULE_PACKS,
   DEFAULT_ENABLED_RULE_PACK_IDS,
 } from "../src/rule-packs/catalog.ts";
 import { compileRulePacks } from "../src/rule-packs/compiler.ts";
+import {
+  buildRulePackContent,
+  normalizeRuleSourceStrategy,
+} from "../src/rule-packs/repository.ts";
 import {
   analyzeProviderRules,
   normalizeProviderRules,
@@ -101,14 +106,16 @@ test("falls back to DIRECT and warns when REJECT cannot be represented", () => {
   assert.match(result.script, /return "DIRECT";/);
 });
 
-test("managed rule packs are enabled by default", () => {
+test("built-in rules stay active independently from default subscriptions", () => {
   const compiled = compileRulePacks(
-    DEFAULT_RULE_PACKS,
+    [...DEFAULT_RULE_PACKS, ...BUILTIN_RULE_PACKS],
     DEFAULT_ENABLED_RULE_PACK_IDS,
   );
 
-  assert.ok(compiled.rules.some((rule) => rule.value === "github.com" && rule.action === "PROXY"));
-  assert.ok(compiled.rules.some((rule) => rule.value === "pinterest" && rule.action === "PROXY"));
+  assert.ok(DEFAULT_RULE_PACKS.every((pack) => pack.defaultUrl && !pack.rulesText));
+  assert.ok(BUILTIN_RULE_PACKS.every((pack) => !pack.defaultUrl && pack.rulesText));
+  assert.ok(compiled.rules.length > 0);
+  assert.ok(BUILTIN_RULE_PACKS.every((pack) => compiled.enabledPackIds.includes(pack.id)));
 });
 
 test("disabled rule packs are excluded without changing catalog order", () => {
@@ -163,6 +170,64 @@ test("normalizes domain-provider YAML and ignores typed Clash payload", () => {
     ].join("\n"),
   );
   assert.equal(analyzeProviderRules(content, "PROXY").ignored, 0);
+});
+
+test("content strategies never fall back to the other source", () => {
+  const pack = {
+    id: "strategy-test",
+    name: "Strategy Test",
+    description: "test",
+    enabledByDefault: false,
+    defaultUrl: "https://example.com/rules.yaml",
+    defaultAction: "PROXY" as const,
+    kind: "custom" as const,
+  };
+  const remote = "DOMAIN-SUFFIX,remote.example,PROXY";
+  const local = "DOMAIN-SUFFIX,local.example,PROXY";
+
+  assert.equal(normalizeRuleSourceStrategy(undefined), "subscription-first");
+  assert.equal(buildRulePackContent(pack, {
+    sourceStrategy: "subscription-first",
+    cachedContent: remote,
+    customContent: local,
+  }).rulesText, remote);
+  assert.equal(buildRulePackContent(pack, {
+    sourceStrategy: "local-first",
+    cachedContent: remote,
+    customContent: local,
+  }).rulesText, local);
+  assert.equal(buildRulePackContent(pack, {
+    sourceStrategy: "subscription-first",
+    customContent: local,
+  }).rulesText, "");
+  assert.equal(buildRulePackContent(pack, {
+    sourceStrategy: "local-first",
+    cachedContent: remote,
+  }).rulesText, "");
+});
+
+test("merge strategy combines remote and local rules and removes duplicates", () => {
+  const result = buildRulePackContent({
+    id: "merge-test",
+    name: "Merge Test",
+    description: "test",
+    enabledByDefault: false,
+    defaultUrl: "",
+    defaultAction: "PROXY",
+    kind: "custom",
+  }, {
+    sourceStrategy: "merge",
+    cachedContent: "DOMAIN-SUFFIX,shared.example,PROXY",
+    customContent: [
+      "DOMAIN-SUFFIX,shared.example,PROXY",
+      "DOMAIN-SUFFIX,local.example,PROXY",
+    ].join("\n"),
+  });
+
+  assert.deepEqual(result.rulesText.split("\n"), [
+    "DOMAIN-SUFFIX,shared.example,PROXY",
+    "DOMAIN-SUFFIX,local.example,PROXY",
+  ]);
 });
 
 test("proxy fallback sends unmatched websites to configured proxy", () => {
@@ -236,7 +301,7 @@ test("custom catalog order overrides a conflicting managed rule", () => {
     rulesText: "DOMAIN-SUFFIX,github.com,DIRECT",
   };
   const compiled = compileRulePacks(
-    [custom, ...DEFAULT_RULE_PACKS],
+    [custom, ...DEFAULT_RULE_PACKS, ...BUILTIN_RULE_PACKS],
     [custom.id, ...DEFAULT_ENABLED_RULE_PACK_IDS],
   );
   const github = compiled.rules.find((rule) => rule.type === "DOMAIN-SUFFIX" && rule.value === "github.com");

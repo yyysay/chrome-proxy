@@ -1,4 +1,9 @@
 import "../ui/ui.css";
+import type { ProxyStatus } from "../proxy/proxy-manager";
+import type {
+  RuntimeMessage,
+  RuntimeResponse,
+} from "../shared/runtime-protocol.ts";
 
 function requiredElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -10,18 +15,11 @@ const settingsButton = requiredElement<HTMLButtonElement>("#open-settings");
 const proxyToggleButton = requiredElement<HTMLButtonElement>("#proxy-toggle");
 const toggleLabel = requiredElement<HTMLElement>("#toggle-label");
 
-interface ProxyStatus {
-  desiredEnabled: boolean;
-  applied: boolean;
-}
-
-interface RuntimeResponse<T = unknown> {
-  ok: boolean;
-  data?: T;
-  error?: string;
-}
-
 let enabled = false;
+
+async function sendMessage<T>(message: RuntimeMessage): Promise<RuntimeResponse<T>> {
+  return chrome.runtime.sendMessage(message) as Promise<RuntimeResponse<T>>;
+}
 
 function renderStatus(status: ProxyStatus): void {
   enabled = status.desiredEnabled || status.applied;
@@ -32,7 +30,7 @@ function renderStatus(status: ProxyStatus): void {
 }
 
 async function refreshStatus(): Promise<void> {
-  const response = await chrome.runtime.sendMessage({ type: "GET_PROXY_STATUS" }) as RuntimeResponse<ProxyStatus>;
+  const response = await sendMessage<ProxyStatus>({ type: "GET_PROXY_STATUS" });
   if (!response.ok || !response.data) throw new Error(response.error ?? "代理状态读取失败");
   renderStatus(response.data);
 }
@@ -44,7 +42,7 @@ settingsButton.addEventListener("click", async () => {
 
 proxyToggleButton.addEventListener("click", () => {
   proxyToggleButton.disabled = true;
-  void chrome.runtime.sendMessage({ type: enabled ? "DISABLE_PROXY" : "ENABLE_PROXY" })
+  void sendMessage({ type: enabled ? "DISABLE_PROXY" : "ENABLE_PROXY" })
     .then(async (response: RuntimeResponse) => {
       if (!response.ok) throw new Error(response.error ?? "操作失败");
       await refreshStatus();

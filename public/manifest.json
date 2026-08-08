@@ -6,7 +6,8 @@
   "permissions": [
     "storage",
     "proxy",
-    "alarms"
+    "alarms",
+    "clipboardWrite"
   ],
   "host_permissions": [
     "https://raw.githubusercontent.com/*",

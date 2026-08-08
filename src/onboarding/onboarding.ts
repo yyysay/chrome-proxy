@@ -1,38 +1,19 @@
 import "../ui/ui.css";
-import { DEFAULT_PROXY_SUBSCRIPTION_URL } from "../proxy/proxy-provider";
-
-interface ProxyStatus {
-  desiredEnabled: boolean;
-  applied: boolean;
-}
-
-interface ProxyProviderState {
-  subscriptionUrl: string;
-  subscription?: {
-    fetchedAt: string;
-    document: { proxies: Array<{ name: string; host: string; port: number }> };
-  };
-}
+import type { ProxyStatus } from "../proxy/proxy-manager";
+import {
+  DEFAULT_PROXY_SUBSCRIPTION_URL,
+  type ProxyProviderState,
+} from "../proxy/proxy-provider";
+import type { NetworkInfoResult } from "../shared/network-types.ts";
+import type {
+  RuntimeMessage,
+  RuntimeResponse,
+} from "../shared/runtime-protocol.ts";
 
 interface SaveSubscriptionResult {
   state: ProxyProviderState;
   updateFailed?: string;
   usedCached?: boolean;
-}
-
-interface RuntimeResponse<T = unknown> {
-  ok: boolean;
-  message?: string;
-  data?: T;
-  error?: string;
-}
-
-interface NetworkInfoResult {
-  direct?: { ip: string };
-  proxy?: { ip: string };
-  directError?: string;
-  proxyError?: string;
-  sameExitIp: boolean;
 }
 
 function requiredElement<T extends Element>(selector: string): T {
@@ -67,7 +48,7 @@ const stepPanels = Array.from(document.querySelectorAll<HTMLElement>("[data-step
 let currentStep = 1;
 let maxUnlockedStep = 1;
 
-async function sendMessage<T>(message: object): Promise<RuntimeResponse<T>> {
+async function sendMessage<T>(message: RuntimeMessage): Promise<RuntimeResponse<T>> {
   return chrome.runtime.sendMessage(message) as Promise<RuntimeResponse<T>>;
 }
 
@@ -211,7 +192,7 @@ subscriptionForm.addEventListener("submit", (event) => {
 enableButton.addEventListener("click", () => {
   enableButton.disabled = true;
   enableButton.textContent = "正在开启…";
-  setEnableHint("正在应用默认规则…");
+  setEnableHint("正在应用分流规则…");
   void sendMessage({ type: "ENABLE_PROXY" })
     .then((response) => {
       if (!response.ok) throw new Error(response.error ?? "开启失败");

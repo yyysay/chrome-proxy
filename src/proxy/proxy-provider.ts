@@ -1,3 +1,22 @@
+import {
+  LEGACY_PROXY_ACTIVE_ID_KEY,
+  LEGACY_PROXY_CONFIG_KEY,
+  PROXY_MANUAL_OVERRIDE_KEY,
+  PROXY_SOURCE_MODE_KEY,
+  PROXY_SUBSCRIPTION_CACHE_KEY,
+  PROXY_SUBSCRIPTION_ERROR_KEY,
+  PROXY_SUBSCRIPTION_URL_KEY,
+} from "../shared/storage-keys.ts";
+
+export {
+  LEGACY_PROXY_CONFIG_KEY,
+  PROXY_MANUAL_OVERRIDE_KEY,
+  PROXY_SOURCE_MODE_KEY,
+  PROXY_SUBSCRIPTION_CACHE_KEY,
+  PROXY_SUBSCRIPTION_ERROR_KEY,
+  PROXY_SUBSCRIPTION_URL_KEY,
+} from "../shared/storage-keys.ts";
+
 export interface ProxyNode {
   id: string;
   name: string;
@@ -45,14 +64,6 @@ export const BUILTIN_FALLBACK_PROXY: ProxyNode = {
   host: "127.0.0.1",
   port: 7890,
 };
-
-export const PROXY_SOURCE_MODE_KEY = "proxySourceMode";
-export const PROXY_SUBSCRIPTION_URL_KEY = "proxySubscriptionUrl";
-export const PROXY_SUBSCRIPTION_CACHE_KEY = "proxySubscriptionCache";
-export const PROXY_SUBSCRIPTION_ERROR_KEY = "proxySubscriptionError";
-export const PROXY_MANUAL_OVERRIDE_KEY = "proxyManualOverride";
-export const LEGACY_PROXY_CONFIG_KEY = "proxyConfig";
-const LEGACY_PROXY_ACTIVE_ID_KEY = "activeProxyId";
 
 const MAX_SUBSCRIPTION_BYTES = 256 * 1024;
 const SUBSCRIPTION_TIMEOUT_MS = 10_000;
