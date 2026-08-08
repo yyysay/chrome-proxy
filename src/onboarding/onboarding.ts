@@ -1,9 +1,6 @@
 import "../ui/ui.css";
 import type { ProxyStatus } from "../proxy/proxy-manager";
-import {
-  DEFAULT_PROXY_SUBSCRIPTION_URL,
-  type ProxyProviderState,
-} from "../proxy/proxy-provider";
+import type { ProxyProviderState } from "../proxy/proxy-provider";
 import type { NetworkInfoResult } from "../shared/network-types.ts";
 import type {
   RuntimeMessage,
@@ -247,7 +244,7 @@ async function initialize(): Promise<void> {
 
   const provider = providerResponse.ok ? providerResponse.data : undefined;
   const status = statusResponse.ok ? statusResponse.data : undefined;
-  subscriptionUrlInput.value = provider?.subscriptionUrl || DEFAULT_PROXY_SUBSCRIPTION_URL;
+  subscriptionUrlInput.value = provider?.subscriptionUrl ?? "";
 
   if (provider?.subscription) {
     maxUnlockedStep = 2;
@@ -262,7 +259,6 @@ async function initialize(): Promise<void> {
 }
 
 void initialize().catch((error: unknown) => {
-  subscriptionUrlInput.value ||= DEFAULT_PROXY_SUBSCRIPTION_URL;
   setSubscriptionHint(error instanceof Error ? error.message : "初始化失败，请重新打开页面。", true);
   showStep(1);
 });

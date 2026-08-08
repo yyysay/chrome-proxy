@@ -13,9 +13,7 @@
             <div class="flex items-center gap-3">
               <span class="grid size-10 place-items-center rounded-xl bg-stone-900 text-base font-black text-white shadow-md shadow-stone-900/10 dark:bg-[#0a84ff] dark:shadow-black/20" aria-hidden="true">A</span>
               <div>
-                <p class="mb-1 text-xs font-extrabold tracking-[.22em] text-stone-400 dark:text-white/40">AUTO PROXY</p>
-                <h1 class="text-2xl font-black tracking-[-.04em] text-stone-900 dark:text-[#f5f5f7]">三步完成设置</h1>
-                <p class="mt-1 max-w-xl text-sm text-stone-500 dark:text-white/65">确认代理来源并通过连接检测后即可开启。</p>
+                <h1 class="text-2xl font-black tracking-[-.04em] text-stone-900 dark:text-[#f5f5f7]"><span class="text-blue-600 dark:text-[#64d2ff]">仅需三步</span>完成设置</h1>
               </div>
             </div>
             <button id="open-settings" class="shrink-0 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold text-stone-600 transition hover:border-stone-300 hover:text-stone-900 dark:border-white/15 dark:bg-[#2c2c2e] dark:text-white/70 dark:hover:border-white/30 dark:hover:text-white" type="button">高级设置</button>
@@ -46,24 +44,21 @@
 
           <div class="mt-4 rounded-2xl border border-stone-200 bg-stone-50/70 p-5 dark:border-white/10 dark:bg-[#242426]">
             <section data-step-panel="1">
-              <p class="text-xs font-extrabold tracking-[.16em] text-stone-400 dark:text-white/40">STEP 01</p>
-              <h2 class="mt-2 text-2xl font-black tracking-[-.03em]">确认代理订阅地址</h2>
-              <p class="mt-2 text-stone-500 dark:text-white/65">这个地址用于统一下发代理配置。以后你只需要更新服务器上的订阅，不需要逐台设备修改。</p>
-              <form id="onboarding-subscription-form" class="mt-4">
+              <h2 class="text-2xl font-black tracking-[-.03em]">输入代理订阅地址</h2>
+              <form id="onboarding-subscription-form" class="mt-5">
                 <label class="block">
                   <span class="mb-2 block text-sm font-bold text-stone-700 dark:text-white/90">订阅地址</span>
-                  <input id="onboarding-subscription-url" class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3.5 text-[15px] text-stone-900 outline-none transition placeholder:text-stone-300 focus:border-stone-500 focus:ring-4 focus:ring-stone-900/5 dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7] dark:placeholder:text-white/30 dark:focus:border-[#0a84ff] dark:focus:ring-[#0a84ff]/20" type="url" autocomplete="off" required />
+                  <input id="onboarding-subscription-url" class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3.5 text-[15px] text-stone-900 outline-none transition placeholder:text-stone-300 focus:border-stone-500 focus:ring-4 focus:ring-stone-900/5 dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7] dark:placeholder:text-white/30 dark:focus:border-[#0a84ff] dark:focus:ring-[#0a84ff]/20" type="url" placeholder="粘贴工作群中的订阅地址" autocomplete="off" required />
                 </label>
                 <div class="mt-4 flex items-center justify-between gap-4">
-                  <p id="subscription-step-hint" class="text-sm text-stone-400 dark:text-white/40">默认地址已填好，直接保存即可。</p>
+                  <p id="subscription-step-hint" class="text-sm text-stone-400 dark:text-white/40">订阅地址于工作群获取</p>
                   <button id="save-subscription" class="rounded-xl bg-stone-900 px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-stone-900/10 transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#0a84ff] dark:hover:bg-[#409cff]" type="submit">保存并继续</button>
                 </div>
               </form>
             </section>
 
             <section data-step-panel="2" hidden>
-              <p class="text-xs font-extrabold tracking-[.16em] text-stone-400 dark:text-white/40">STEP 02</p>
-              <h2 class="mt-2 text-xl font-black tracking-[-.03em]">验证代理连接</h2>
+              <h2 class="text-xl font-black tracking-[-.03em]">验证代理连接</h2>
               <p class="mt-1 text-stone-500 dark:text-white/65">只有检测通过后才能开启。检测失败时请重新填写订阅，或改用本地 IP 和端口。</p>
               <div id="onboarding-health" class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 dark:border-[#ff9f0a]/40 dark:bg-[#ff9f0a]/15">
                 <div class="flex items-center justify-between gap-4">
@@ -93,9 +88,12 @@
             <section data-step-panel="3" hidden>
               <div class="py-3 text-center">
                 <span class="mx-auto grid size-14 place-items-center rounded-full bg-emerald-100 text-2xl font-black text-emerald-700 dark:bg-[#30d158]/15 dark:text-[#30d158]" aria-hidden="true">✓</span>
-                <p class="mt-5 text-xs font-extrabold tracking-[.16em] text-stone-400 dark:text-white/40">DONE</p>
-                <h2 class="mt-2 text-2xl font-black tracking-[-.03em]">设置完成</h2>
-                <p class="mx-auto mt-2 max-w-md text-stone-500 dark:text-white/65">以后无需再打开这个引导页面。日常只需要点击浏览器工具栏里的 Auto Proxy 图标开启或关闭。</p>
+                <h2 class="mt-5 text-2xl font-black tracking-[-.03em]">设置完成</h2>
+                <p class="mx-auto mt-2 max-w-md text-stone-500 dark:text-white/65">后续使用只需要在顶部插件中开启或者关闭。</p>
+                <div class="mx-auto mt-5 flex max-w-md items-center gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-left dark:border-white/10 dark:bg-[#2c2c2e]">
+                  <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-[#0a84ff]/18 dark:text-[#64d2ff]" aria-hidden="true"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 4H5a1 1 0 0 0-1 1v4.5a2.5 2.5 0 1 1 0 5V19a1 1 0 0 0 1 1h4.5a2.5 2.5 0 1 1 5 0H19a1 1 0 0 0 1-1v-4.5a2.5 2.5 0 1 1 0-5V5a1 1 0 0 0-1-1h-4.5a2.5 2.5 0 1 1-5 0Z"/></svg></span>
+                  <span><strong class="block text-sm">建议固定到工具栏</strong><small class="mt-0.5 block text-xs text-stone-500 dark:text-white/55">点击 Chrome 右上角“扩展程序”，再固定 Auto Proxy。</small></span>
+                </div>
                 <button id="close-page" class="mt-6 rounded-xl bg-stone-900 px-6 py-3 text-sm font-extrabold text-white shadow-lg shadow-stone-900/10 transition hover:bg-stone-800 dark:bg-[#0a84ff] dark:hover:bg-[#409cff]" type="button">关闭此页面</button>
               </div>
             </section>

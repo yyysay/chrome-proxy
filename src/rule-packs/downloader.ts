@@ -6,85 +6,116 @@ import {
   normalizeRuleSourceStrategy,
   saveRulePackSources,
 } from "./repository.ts";
-import { applySelectedMode } from "../proxy/pac-controller.ts";
 import { getEffectiveProxy } from "../proxy/proxy-provider.ts";
 import {
   assertControllable,
-  getDesiredEnabled,
-  loadFallbackMode,
-  readEffectiveSetting,
   runExclusiveProxyMutation,
   toProxyConfig,
 } from "../proxy/proxy-state.ts";
 
 const MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT_MS = 15_000;
+const MANAGED_DOWNLOAD_ROUTES = ["direct", "system", "proxy"] as const;
+
+type ManagedDownloadRoute = typeof MANAGED_DOWNLOAD_ROUTES[number];
+
+const MANAGED_DOWNLOAD_ROUTE_LABELS: Record<ManagedDownloadRoute, string> = {
+  direct: "直连",
+  system: "系统代理",
+  proxy: "当前代理",
+};
+
+async function fetchRuleSource(url: string): Promise<string> {
+  const response = await fetch(url, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_DOWNLOAD_BYTES) {
+    throw new Error("订阅文件超过 2 MB 限制");
+  }
+  const content = await response.text();
+  if (new TextEncoder().encode(content).byteLength > MAX_DOWNLOAD_BYTES) {
+    throw new Error("订阅文件超过 2 MB 限制");
+  }
+  return content;
+}
+
+async function applyManagedDownloadRoute(route: ManagedDownloadRoute, url: string): Promise<void> {
+  if (route === "system") {
+    await chrome.proxy.settings.clear({ scope: "regular" });
+    return;
+  }
+
+  if (route === "direct") {
+    await chrome.proxy.settings.set({
+      value: { mode: "direct" },
+      scope: "regular",
+    });
+    return;
+  }
+
+  const parsed = new URL(url);
+  const config = toProxyConfig(await getEffectiveProxy());
+  const host = JSON.stringify(parsed.hostname.toLowerCase());
+  const suffix = JSON.stringify(`.${parsed.hostname.toLowerCase()}`);
+  const proxyResult = JSON.stringify(`PROXY ${config.host}:${config.port}`);
+  await chrome.proxy.settings.set({
+    value: {
+      mode: "pac_script",
+      pacScript: {
+        mandatory: true,
+        data: [
+          "function FindProxyForURL(url, host) {",
+          "  host = host.toLowerCase();",
+          `  if (host === ${host} || dnsDomainIs(host, ${suffix})) return ${proxyResult};`,
+          '  return "DIRECT";',
+          "}",
+        ].join("\n"),
+      },
+    },
+    scope: "regular",
+  });
+}
+
+async function restoreProxySetting(
+  previous: chrome.types.ChromeSettingGetResult<chrome.proxy.ProxyConfig>,
+): Promise<void> {
+  if (previous.levelOfControl === "controlled_by_this_extension") {
+    await chrome.proxy.settings.set({
+      value: previous.value as chrome.proxy.ProxyConfig,
+      scope: "regular",
+    });
+    return;
+  }
+  await chrome.proxy.settings.clear({ scope: "regular" });
+}
 
 async function downloadRuleSourceText(pack: RulePackDefinition, url: string): Promise<string> {
-  const download = async (): Promise<string> => {
-    let temporaryProxyApplied = false;
+  if (!isManagedDefinition(pack)) return fetchRuleSource(url);
 
-    if (isManagedDefinition(pack)) {
-      const [desiredEnabled, fallbackMode, effective] = await Promise.all([
-        getDesiredEnabled(),
-        loadFallbackMode(),
-        readEffectiveSetting(),
-      ]);
-      const regularPacCanRouteSource = desiredEnabled && fallbackMode !== "system" &&
-        effective.mode === "pac_script" && effective.levelOfControl === "controlled_by_this_extension";
-
-      if (!regularPacCanRouteSource) {
-        const parsed = new URL(url);
-        const config = toProxyConfig(await getEffectiveProxy());
-        assertControllable(effective.levelOfControl);
-        const host = JSON.stringify(parsed.hostname.toLowerCase());
-        const suffix = JSON.stringify(`.${parsed.hostname.toLowerCase()}`);
-        const proxyResult = JSON.stringify(`PROXY ${config.host}:${config.port}`);
-        const temporaryPac: chrome.proxy.ProxyConfig = {
-          mode: "pac_script",
-          pacScript: {
-            mandatory: true,
-            data: [
-              "function FindProxyForURL(url, host) {",
-              "  host = host.toLowerCase();",
-              `  if (host === ${host} || dnsDomainIs(host, ${suffix})) return ${proxyResult};`,
-              '  return "DIRECT";',
-              "}",
-            ].join("\n"),
-          },
-        };
-        await chrome.proxy.settings.set({ value: temporaryPac, scope: "regular" });
-        temporaryProxyApplied = true;
-      }
-    }
+  return runExclusiveProxyMutation(async () => {
+    const previous = await chrome.proxy.settings.get({ incognito: false });
+    assertControllable(previous.levelOfControl);
+    const failures: string[] = [];
 
     try {
-      const response = await fetch(url, {
-        cache: "no-store",
-        signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const declaredLength = Number(response.headers.get("content-length"));
-      if (Number.isFinite(declaredLength) && declaredLength > MAX_DOWNLOAD_BYTES) {
-        throw new Error("订阅文件超过 2 MB 限制");
+      for (const route of MANAGED_DOWNLOAD_ROUTES) {
+        try {
+          await applyManagedDownloadRoute(route, url);
+          return await fetchRuleSource(url);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "下载失败";
+          failures.push(`${MANAGED_DOWNLOAD_ROUTE_LABELS[route]}: ${message}`);
+        }
       }
-      const content = await response.text();
-      if (new TextEncoder().encode(content).byteLength > MAX_DOWNLOAD_BYTES) {
-        throw new Error("订阅文件超过 2 MB 限制");
-      }
-      return content;
+      throw new Error(`三次下载均失败（${failures.join("；")}）`);
     } finally {
-      if (temporaryProxyApplied) {
-        if (await getDesiredEnabled()) await applySelectedMode();
-        else await chrome.proxy.settings.clear({ scope: "regular" });
-      }
+      await restoreProxySetting(previous);
     }
-  };
-
-  return isManagedDefinition(pack)
-    ? runExclusiveProxyMutation(download)
-    : download();
+  });
 }
 
 export async function refreshRulePackSource(packId: string): Promise<void> {

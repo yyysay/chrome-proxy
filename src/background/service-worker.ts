@@ -1,4 +1,7 @@
-import { migrateStoredData } from "../proxy/proxy-manager.ts";
+import {
+  bootstrapDefaultRulePacks,
+  migrateStoredData,
+} from "../proxy/proxy-manager.ts";
 import type {
   RuntimeMessage,
   RuntimeResponse,
@@ -16,6 +19,17 @@ import {
 } from "./diagnostics.ts";
 import { handleMessage } from "./message-handler.ts";
 import { scheduleReconcile } from "./reconcile-scheduler.ts";
+
+async function bootstrapMissingDefaultRules(): Promise<void> {
+  const result = await bootstrapDefaultRulePacks();
+  if (result.failed > 0) {
+    await recordDiagnosticEvent({
+      type: "subscription",
+      message: "默认规则首次下载失败",
+      details: `成功 ${result.refreshed} 个，失败 ${result.failed} 个；已依次尝试直连、系统代理和当前代理`,
+    });
+  }
+}
 
 async function initializeExtension(reason: string): Promise<void> {
   await migrateStoredData();
@@ -35,6 +49,8 @@ async function initializeExtension(reason: string): Promise<void> {
     });
   }
 
+  await bootstrapMissingDefaultRules();
+
   // 开发模式更新 dist 后，Chrome 会重新加载扩展并清除它控制的设置。
   // onInstalled 在重新加载完成后触发，此时再根据持久状态恢复 PAC。
   scheduleReconcile(`runtime.${reason}`);
@@ -45,6 +61,7 @@ async function restoreExtensionOnStartup(): Promise<void> {
   await migrateStoredData();
   await syncRuleRefreshAlarm();
   await syncProxySubscriptionAlarm();
+  await bootstrapMissingDefaultRules();
   scheduleReconcile("runtime.startup");
   await syncActionState();
 }

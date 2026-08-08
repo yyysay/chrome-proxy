@@ -54,9 +54,6 @@ export interface ProxyProviderState {
   subscriptionError?: string;
 }
 
-// 发布前在这里填入你的正式代理配置订阅地址。
-export const DEFAULT_PROXY_SUBSCRIPTION_URL = "https://dufs.ms.y3-3am.top/autoproxy/proxies.json";
-
 export const BUILTIN_FALLBACK_PROXY: ProxyNode = {
   id: "builtin-local",
   name: "Local Proxy",
@@ -157,7 +154,7 @@ async function loadRawState(): Promise<{
 
   const subscriptionUrl = typeof stored[PROXY_SUBSCRIPTION_URL_KEY] === "string"
     ? stored[PROXY_SUBSCRIPTION_URL_KEY].trim()
-    : DEFAULT_PROXY_SUBSCRIPTION_URL;
+    : "";
   const manualOverride = isValidProxyNode(stored[PROXY_MANUAL_OVERRIDE_KEY])
     ? normalizeNode(stored[PROXY_MANUAL_OVERRIDE_KEY])
     : undefined;

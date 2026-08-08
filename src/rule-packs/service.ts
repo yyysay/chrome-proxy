@@ -31,6 +31,47 @@ import { reconcileProxy } from "../proxy/pac-controller.ts";
 import { ruleMatchesHostname } from "../proxy/pac-builder.ts";
 import { loadFallbackMode } from "../proxy/proxy-state.ts";
 
+export interface DefaultRuleBootstrapResult {
+  refreshed: number;
+  failed: number;
+  skipped: number;
+}
+
+export async function bootstrapDefaultRulePacks(): Promise<DefaultRuleBootstrapResult> {
+  const [enabledDefaultIds, definitions, sources] = await Promise.all([
+    loadEnabledDefaultRulePackIds(),
+    loadRulePackDefinitions(),
+    loadRulePackSources(),
+  ]);
+  const enabled = new Set(enabledDefaultIds);
+  let refreshed = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const pack of definitions) {
+    if (!MANAGED_RULE_PACK_IDS.includes(pack.id) || !enabled.has(pack.id)) continue;
+    const source = sources[pack.id];
+    const sourceStrategy = normalizeRuleSourceStrategy(source?.sourceStrategy);
+    const url = source?.url || pack.defaultUrl;
+    if (sourceStrategy === "local-first" || !url || source?.cachedContent) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      await refreshRulePackSource(pack.id);
+      refreshed += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+
+  if (refreshed > 0) {
+    await reconcileProxy("defaultRulePacks.bootstrap", true);
+  }
+  return { refreshed, failed, skipped };
+}
+
 export async function updateEnabledRulePacks(requestedIds: readonly string[]): Promise<{
   enabledPackIds: string[];
   pacReapplied: boolean;

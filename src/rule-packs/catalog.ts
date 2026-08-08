@@ -10,6 +10,15 @@ export const DEFAULT_RULE_PACKS: readonly RulePackDefinition[] = [
     defaultAction: "PROXY",
     kind: "managed",
   },
+  {
+    id: "managed-proxy",
+    name: "Custom Proxy",
+    description: "预设的代理远程规则订阅",
+    enabledByDefault: true,
+    defaultUrl: "https://dufs.ms.y3-3am.top/clash-rules/domain/custom-proxy.yaml",
+    defaultAction: "PROXY",
+    kind: "managed",
+  },
 ];
 
 export const BUILTIN_RULE_PACKS: readonly RulePackDefinition[] = [

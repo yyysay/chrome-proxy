@@ -41,6 +41,7 @@ test("proxy provider falls back to built-in local proxy", async () => {
   installChromeStorage();
   const state = await getProxyProviderState();
   assert.equal(state.sourceMode, "subscription");
+  assert.equal(state.subscriptionUrl, "");
   assert.equal(state.effectiveSource, "fallback");
   assert.deepEqual(state.activeProxy, BUILTIN_FALLBACK_PROXY);
 });

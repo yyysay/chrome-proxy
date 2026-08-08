@@ -103,7 +103,7 @@ function renderDefaultUpdateStatus(settings: readonly RulePackSetting[]): void {
       staleMinutes: 10_080,
     });
   } else {
-    const updateFailed = managed.some((pack) => pack.source.status === "error");
+    const updateFailed = managed.some((pack) => Boolean(pack.source.error));
     managedRuleCount.className = updateFailed
       ? "shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-extrabold text-red-700 dark:bg-[#ff453a]/15 dark:text-[#ff6961]"
       : "shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-extrabold text-stone-500 dark:bg-white/8 dark:text-white/55";
@@ -154,6 +154,13 @@ function renderRulePackList(settings: readonly RulePackSetting[]): void {
       customizedBadge.className = "shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-700 dark:bg-[#ff9f0a]/15 dark:text-[#ff9f0a]";
       customizedBadge.textContent = "已修改";
       titleLine.append(customizedBadge);
+    }
+    if (pack.source.error) {
+      const updateFailedBadge = document.createElement("span");
+      updateFailedBadge.className = "shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-extrabold text-red-700 dark:bg-[#ff453a]/15 dark:text-[#ff6961]";
+      updateFailedBadge.textContent = "更新失败";
+      updateFailedBadge.title = pack.source.error;
+      titleLine.append(updateFailedBadge);
     }
     const meta = document.createElement("span");
     meta.className = "mt-1 block text-[11px] font-semibold text-stone-400 dark:text-white/40";

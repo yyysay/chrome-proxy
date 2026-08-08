@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { MANAGED_RULE_PACK_IDS } from "../src/rule-packs/catalog.ts";
 import {
   beginNetworkInfoCheck,
+  bootstrapDefaultRulePacks,
   disableProxy,
   enableProxy,
   finishNetworkInfoCheck,
   getRulePackSettings,
   getProxyStatus,
+  migrateStoredData,
   refreshEnabledRulePacks,
   reconcileProxy,
   saveRulePack,
@@ -20,6 +23,9 @@ import {
   PROXY_MANUAL_OVERRIDE_KEY,
   PROXY_SOURCE_MODE_KEY,
   PROXY_STATE_KEY,
+  PROXY_SUBSCRIPTION_CACHE_KEY,
+  PROXY_SUBSCRIPTION_ERROR_KEY,
+  PROXY_SUBSCRIPTION_URL_KEY,
   RULE_PACK_DEFINITIONS_KEY,
   RULE_PACK_SOURCES_KEY,
 } from "../src/shared/storage-keys.ts";
@@ -212,11 +218,65 @@ test("default rules can be disabled and stale managed definitions stay hidden", 
   await updateEnabledRulePacks([]);
   const after = await getRulePackSettings();
   assert.equal(after.find((pack) => pack.category === "default")?.enabled, false);
-  assert.deepEqual(mock.data.get(DISABLED_DEFAULT_RULE_PACK_IDS_KEY), ["managed-pinterest"]);
+  assert.deepEqual(mock.data.get(DISABLED_DEFAULT_RULE_PACK_IDS_KEY), [...MANAGED_RULE_PACK_IDS]);
   assert.deepEqual(await refreshEnabledRulePacks(), {
     refreshed: 0,
     cached: 0,
     failed: 0,
     skipped: 0,
   });
+});
+
+test("default rules bootstrap once with direct, system, and current proxy fallback", async () => {
+  const mock = installChrome({
+    initial: manualProxyState({
+      [DISABLED_DEFAULT_RULE_PACK_IDS_KEY]: MANAGED_RULE_PACK_IDS.slice(1),
+    }),
+  });
+  const originalFetch = globalThis.fetch;
+  const attemptedModes: string[] = [];
+  globalThis.fetch = (async () => {
+    attemptedModes.push(String(mock.proxyValue.mode));
+    if (attemptedModes.length < 3) throw new Error("route unavailable");
+    return new Response("payload:\n  - +.pinterest.com", { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    assert.deepEqual(await bootstrapDefaultRulePacks(), {
+      refreshed: 1,
+      failed: 0,
+      skipped: 0,
+    });
+    assert.deepEqual(attemptedModes, ["direct", "system", "pac_script"]);
+    assert.equal(mock.proxyValue.mode, "system");
+    const sources = mock.data.get(RULE_PACK_SOURCES_KEY) as Record<string, { cachedContent?: string }>;
+    assert.match(sources["managed-pinterest"].cachedContent ?? "", /pinterest\.com/);
+
+    assert.deepEqual(await bootstrapDefaultRulePacks(), {
+      refreshed: 0,
+      failed: 0,
+      skipped: 1,
+    });
+    assert.equal(attemptedModes.length, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("migration removes the legacy built-in proxy subscription address", async () => {
+  const legacyUrl = "https://dufs.ms.y3-3am.top/autoproxy/proxies.json";
+  const mock = installChrome({
+    initial: {
+      schemaVersion: 5,
+      [PROXY_SUBSCRIPTION_URL_KEY]: legacyUrl,
+      [PROXY_SUBSCRIPTION_CACHE_KEY]: { url: legacyUrl },
+      [PROXY_SUBSCRIPTION_ERROR_KEY]: "offline",
+    },
+  });
+
+  await migrateStoredData();
+  assert.equal(mock.data.get("schemaVersion"), 6);
+  assert.equal(mock.data.has(PROXY_SUBSCRIPTION_URL_KEY), false);
+  assert.equal(mock.data.has(PROXY_SUBSCRIPTION_CACHE_KEY), false);
+  assert.equal(mock.data.has(PROXY_SUBSCRIPTION_ERROR_KEY), false);
 });

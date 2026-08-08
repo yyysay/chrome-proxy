@@ -12,16 +12,17 @@ import {
 import {
   ENABLED_RULE_PACK_IDS_KEY,
   LEGACY_RULE_SOURCE_STRATEGIES_KEY,
+  PROXY_SUBSCRIPTION_CACHE_KEY,
+  PROXY_SUBSCRIPTION_ERROR_KEY,
   PROXY_SUBSCRIPTION_URL_KEY,
   RULE_PACK_DEFINITIONS_KEY,
   RULE_PACK_SOURCES_KEY,
   SIMPLE_ENABLED_RULE_PACK_IDS_KEY,
   UI_MODE_KEY,
 } from "../shared/storage-keys.ts";
-import {
-  DEFAULT_PROXY_SUBSCRIPTION_URL,
-  migrateLegacyProxyConfig,
-} from "./proxy-provider.ts";
+import { migrateLegacyProxyConfig } from "./proxy-provider.ts";
+
+const LEGACY_DEFAULT_PROXY_SUBSCRIPTION_URL = "https://dufs.ms.y3-3am.top/autoproxy/proxies.json";
 
 export async function migrateStoredData(): Promise<void> {
   await migrateLegacyProxyConfig();
@@ -29,9 +30,13 @@ export async function migrateStoredData(): Promise<void> {
     loadCustomRulePackDefinitions(),
     loadEnabledCustomRulePackIds(),
     loadRulePackSources(),
-    chrome.storage.local.get(["schemaVersion", LEGACY_RULE_SOURCE_STRATEGIES_KEY]),
+    chrome.storage.local.get([
+      "schemaVersion",
+      LEGACY_RULE_SOURCE_STRATEGIES_KEY,
+      PROXY_SUBSCRIPTION_URL_KEY,
+    ]),
   ]);
-  if (stored.schemaVersion === 5) return;
+  if (stored.schemaVersion === 6) return;
 
   const knownCustomIds = new Set(customDefinitions.map((pack) => pack.id));
   const legacyStrategies = stored[LEGACY_RULE_SOURCE_STRATEGIES_KEY] &&
@@ -54,16 +59,22 @@ export async function migrateStoredData(): Promise<void> {
   }
 
   await chrome.storage.local.set({
-    schemaVersion: 5,
+    schemaVersion: 6,
     [RULE_PACK_DEFINITIONS_KEY]: customDefinitions,
     [ENABLED_RULE_PACK_IDS_KEY]: enabledIds.filter((id) => knownCustomIds.has(id)),
     [RULE_PACK_SOURCES_KEY]: migratedSources,
-    [PROXY_SUBSCRIPTION_URL_KEY]: (await chrome.storage.local.get(PROXY_SUBSCRIPTION_URL_KEY))[PROXY_SUBSCRIPTION_URL_KEY]
-      ?? DEFAULT_PROXY_SUBSCRIPTION_URL,
   });
-  await chrome.storage.local.remove([
+  const obsoleteKeys = [
     LEGACY_RULE_SOURCE_STRATEGIES_KEY,
     SIMPLE_ENABLED_RULE_PACK_IDS_KEY,
     UI_MODE_KEY,
-  ]);
+  ];
+  if (stored[PROXY_SUBSCRIPTION_URL_KEY] === LEGACY_DEFAULT_PROXY_SUBSCRIPTION_URL) {
+    obsoleteKeys.push(
+      PROXY_SUBSCRIPTION_URL_KEY,
+      PROXY_SUBSCRIPTION_CACHE_KEY,
+      PROXY_SUBSCRIPTION_ERROR_KEY,
+    );
+  }
+  await chrome.storage.local.remove(obsoleteKeys);
 }

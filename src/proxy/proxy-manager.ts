@@ -16,6 +16,7 @@ export {
 } from "./proxy-source-service.ts";
 
 export {
+  bootstrapDefaultRulePacks,
   deleteRulePack,
   getRulePackSettings,
   refreshEnabledRulePacks,
