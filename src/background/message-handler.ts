@@ -105,7 +105,9 @@ export async function handleMessage(message: RuntimeMessage): Promise<RuntimeRes
       return {
         ok: true,
         data: { intervalMinutes },
-        message: `代理订阅将每 ${formatRefreshInterval(intervalMinutes)}更新`,
+        message: intervalMinutes === 0
+          ? "代理订阅自动更新已关闭"
+          : `代理订阅将每 ${formatRefreshInterval(intervalMinutes)}更新`,
       };
     }
 

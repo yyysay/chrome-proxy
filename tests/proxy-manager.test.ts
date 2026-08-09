@@ -23,9 +23,7 @@ import {
   PROXY_MANUAL_OVERRIDE_KEY,
   PROXY_SOURCE_MODE_KEY,
   PROXY_STATE_KEY,
-  PROXY_SUBSCRIPTION_CACHE_KEY,
-  PROXY_SUBSCRIPTION_ERROR_KEY,
-  PROXY_SUBSCRIPTION_URL_KEY,
+  MANAGED_RULE_OVERRIDES_KEY,
   RULE_PACK_DEFINITIONS_KEY,
   RULE_PACK_SOURCES_KEY,
 } from "../src/shared/storage-keys.ts";
@@ -263,20 +261,29 @@ test("default rules bootstrap once with direct, system, and current proxy fallba
   }
 });
 
-test("migration removes the legacy built-in proxy subscription address", async () => {
-  const legacyUrl = "https://dufs.ms.y3-3am.top/autoproxy/proxies.json";
+test("migration removes retired private subscriptions and their stored state", async () => {
   const mock = installChrome({
     initial: {
       schemaVersion: 5,
-      [PROXY_SUBSCRIPTION_URL_KEY]: legacyUrl,
-      [PROXY_SUBSCRIPTION_CACHE_KEY]: { url: legacyUrl },
-      [PROXY_SUBSCRIPTION_ERROR_KEY]: "offline",
+      [RULE_PACK_SOURCES_KEY]: {
+        "managed-proxy": { url: "https://private.example/rules.yaml", cachedContent: "secret.internal" },
+        "managed-pinterest": { cachedContent: "pinterest.com" },
+      },
+      [DISABLED_DEFAULT_RULE_PACK_IDS_KEY]: ["managed-proxy", "managed-pinterest"],
+      [MANAGED_RULE_OVERRIDES_KEY]: {
+        "managed-proxy": { name: "Private" },
+        "managed-pinterest": { name: "Pinterest Custom" },
+      },
     },
   });
 
   await migrateStoredData();
-  assert.equal(mock.data.get("schemaVersion"), 6);
-  assert.equal(mock.data.has(PROXY_SUBSCRIPTION_URL_KEY), false);
-  assert.equal(mock.data.has(PROXY_SUBSCRIPTION_CACHE_KEY), false);
-  assert.equal(mock.data.has(PROXY_SUBSCRIPTION_ERROR_KEY), false);
+  assert.equal(mock.data.get("schemaVersion"), 7);
+  assert.deepEqual(mock.data.get(RULE_PACK_SOURCES_KEY), {
+    "managed-pinterest": { cachedContent: "pinterest.com", sourceStrategy: "subscription-first" },
+  });
+  assert.deepEqual(mock.data.get(DISABLED_DEFAULT_RULE_PACK_IDS_KEY), ["managed-pinterest"]);
+  assert.deepEqual(mock.data.get(MANAGED_RULE_OVERRIDES_KEY), {
+    "managed-pinterest": { name: "Pinterest Custom" },
+  });
 });

@@ -1,4 +1,5 @@
 import {
+  DISABLED_REFRESH_INTERVAL_MINUTES,
   isValidRefreshIntervalMinutes,
   MAX_REFRESH_INTERVAL_MINUTES,
   MIN_REFRESH_INTERVAL_MINUTES,
@@ -18,6 +19,11 @@ export function renderRefreshInterval(
   customUnit: HTMLSelectElement,
   valueMinutes: number,
 ): void {
+  if (valueMinutes === DISABLED_REFRESH_INTERVAL_MINUTES && select.querySelector('option[value="0"]')) {
+    select.value = String(DISABLED_REFRESH_INTERVAL_MINUTES);
+    customGroup.hidden = true;
+    return;
+  }
   const normalized = isValidRefreshIntervalMinutes(valueMinutes) ? valueMinutes : 1_440;
   const preset = PRESET_REFRESH_INTERVALS.includes(normalized as typeof PRESET_REFRESH_INTERVALS[number]);
   select.value = preset ? String(normalized) : "custom";
@@ -33,6 +39,7 @@ export function selectedRefreshInterval(
   customInput: HTMLInputElement,
   customUnit: HTMLSelectElement,
 ): number {
+  if (select.value === String(DISABLED_REFRESH_INTERVAL_MINUTES)) return DISABLED_REFRESH_INTERVAL_MINUTES;
   const unit = customUnit.value as RefreshUnit;
   const valueMinutes = select.value === "custom"
     ? Number(customInput.value) * refreshUnitMultiplier(unit)
@@ -50,6 +57,7 @@ export function storedRefreshIntervalMinutes(
   fallbackMinutes: number,
 ): number {
   const intervalMinutes = Number(stored[key]);
+  if (intervalMinutes === DISABLED_REFRESH_INTERVAL_MINUTES) return DISABLED_REFRESH_INTERVAL_MINUTES;
   if (isValidRefreshIntervalMinutes(intervalMinutes)) return intervalMinutes;
   const legacyMinutes = Number(stored[legacyHoursKey]) * 60;
   return isValidRefreshIntervalMinutes(legacyMinutes) ? legacyMinutes : fallbackMinutes;

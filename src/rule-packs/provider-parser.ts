@@ -44,7 +44,7 @@ function normalizeProviderEntry(
 
   // 兼容常见 Clash provider 条目，不要求用户手动补 action。
   const parts = value.split(",").map((part) => part.trim());
-  if (parts.length >= 2 && (parts[0] === "DOMAIN" || parts[0] === "DOMAIN-SUFFIX")) {
+  if (parts.length >= 2 && (parts[0] === "DOMAIN" || parts[0] === "DOMAIN-SUFFIX" || parts[0] === "IP-CIDR")) {
     return parts[1] ? `${parts[0]},${parts[1]},${action}` : undefined;
   }
 

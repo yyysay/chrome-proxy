@@ -1,7 +1,8 @@
 export type RuleType =
   | "DOMAIN"
   | "DOMAIN-SUFFIX"
-  | "DOMAIN-KEYWORD";
+  | "DOMAIN-KEYWORD"
+  | "IP-CIDR";
 
 export type RuleAction =
   | "PROXY"

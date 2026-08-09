@@ -24,14 +24,11 @@ export function parseIpipCurrentInfo(text: string, requestMs: number): NetworkRo
   const match = normalized.match(/(?:IP|ip)\s*[：:]?\s*([0-9a-f:.]+)(?:\s+来自于[：:]?\s*(.*))?/);
   const ip = match?.[1]?.trim() ?? "";
 
-  if (!isLikelyIp(ip)) {
-    throw new Error("IPIP 未返回有效的直连出口 IP");
-  }
+  if (!isLikelyIp(ip)) throw new Error("IPIP 未返回有效的直连出口 IP");
 
   const location = match?.[2]?.trim();
   const parts = location ? location.split(/\s+/).filter(Boolean) : [];
   const country = parts[0];
-
   return {
     ip,
     requestMs,
@@ -46,7 +43,7 @@ export function parseIpipCurrentInfo(text: string, requestMs: number): NetworkRo
 export function parseIpSbGeo(value: Record<string, unknown>, requestMs: number): NetworkRouteInfo {
   const ip = typeof value.ip === "string" ? value.ip.trim() : "";
   if (!isLikelyIp(ip)) {
-    throw new Error("IP.SB 未返回有效的代理出口 IP");
+    throw new Error("IP.SB 未返回有效的出口 IP");
   }
 
   return {
@@ -61,6 +58,18 @@ export function parseIpSbGeo(value: Record<string, unknown>, requestMs: number):
   };
 }
 
+async function inspectIpSbRoute(): Promise<NetworkRouteInfo> {
+  const startedAt = performance.now();
+  const response = await fetch(`https://api.ip.sb/geoip?t=${Date.now()}`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) throw new Error(`IP.SB 返回 HTTP ${response.status}`);
+  const value = await response.json() as Record<string, unknown>;
+  const requestMs = Math.max(1, Math.round(performance.now() - startedAt));
+  return parseIpSbGeo(value, requestMs);
+}
+
 export function inspectNetworkInfo(): Promise<NetworkInspection> {
   return runExclusiveProxyMutation(async () => {
     const config = await beginNetworkInfoCheck();
@@ -68,8 +77,6 @@ export function inspectNetworkInfo(): Promise<NetworkInspection> {
     let proxyResult: PromiseSettledResult<NetworkRouteInfo>;
 
     try {
-      // 只发两次并行请求：IPIP 的响应本身带直连归属地；
-      // IP.SB /geoip 一次返回代理出口 IP + GeoIP。
       const directStartedAt = performance.now();
       const directRequest = fetch(`https://myip.ipip.net/?t=${Date.now()}`, {
         cache: "no-store",
@@ -80,19 +87,7 @@ export function inspectNetworkInfo(): Promise<NetworkInspection> {
         const requestMs = Math.max(1, Math.round(performance.now() - directStartedAt));
         return parseIpipCurrentInfo(text, requestMs);
       });
-
-      const proxyStartedAt = performance.now();
-      const proxyRequest = fetch(`https://api.ip.sb/geoip?t=${Date.now()}`, {
-        cache: "no-store",
-        signal: AbortSignal.timeout(5000),
-      }).then(async (response) => {
-        if (!response.ok) throw new Error(`IP.SB 返回 HTTP ${response.status}`);
-        const value = await response.json() as Record<string, unknown>;
-        const requestMs = Math.max(1, Math.round(performance.now() - proxyStartedAt));
-        return parseIpSbGeo(value, requestMs);
-      });
-
-      [directResult, proxyResult] = await Promise.allSettled([directRequest, proxyRequest]);
+      [directResult, proxyResult] = await Promise.allSettled([directRequest, inspectIpSbRoute()]);
     } finally {
       // 探测期间使用临时 PAC；无论成功失败都恢复用户原来的代理状态。
       await finishNetworkInfoCheck();

@@ -1,6 +1,7 @@
 export const PRESET_REFRESH_INTERVALS = [360, 720, 1_440, 10_080] as const;
 export const MIN_REFRESH_INTERVAL_MINUTES = 1;
 export const MAX_REFRESH_INTERVAL_MINUTES = 43_200;
+export const DISABLED_REFRESH_INTERVAL_MINUTES = 0;
 
 export type RefreshUnit = "minute" | "hour" | "day";
 
@@ -27,4 +28,19 @@ export function formatRefreshInterval(intervalMinutes: number): string {
 
 export function refreshUnitMultiplier(unit: RefreshUnit): number {
   return unit === "day" ? 1_440 : unit === "hour" ? 60 : 1;
+}
+
+export function refreshStatusThresholds(
+  automatic: boolean,
+  intervalMinutes: number,
+  manualFreshMinutes: number,
+  manualStaleMinutes: number,
+): { freshMinutes: number; staleMinutes: number } {
+  if (!automatic || !isValidRefreshIntervalMinutes(intervalMinutes)) {
+    return { freshMinutes: manualFreshMinutes, staleMinutes: manualStaleMinutes };
+  }
+  return {
+    freshMinutes: Math.ceil(intervalMinutes * 1.25),
+    staleMinutes: intervalMinutes * 2,
+  };
 }

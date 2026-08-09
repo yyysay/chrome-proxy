@@ -64,11 +64,12 @@ Popup / Onboarding / Settings
 自定义规则 → 默认远程规则 → 内置规则 → MATCH
 ```
 
-- 支持 `DOMAIN`、`DOMAIN-SUFFIX`、`DOMAIN-KEYWORD`。
+- 支持 `DOMAIN`、`DOMAIN-SUFFIX`、`DOMAIN-KEYWORD`、`IP-CIDR`（IPv4）。
 - 规则从上到下匹配，首条命中即结束。
 - 默认规则定义在 `src/rule-packs/catalog.ts`，默认可关闭、可覆盖配置，但不可删除。
 - 内置规则随代码发布、始终启用并隐藏在普通 UI 中。
 - 自定义规则可新增、修改和删除。
+- 隐藏的“本地网络直连”内置规则覆盖 localhost、`.local`、回环、链路本地与常见 IPv4 私网；更靠前的自定义或默认规则可以覆盖它。
 - 重复规则去重；连接策略冲突时保留排序更靠前的规则。
 - 规则内容策略严格区分来源，不做隐式 fallback：
   - `subscription-first`：只使用远程内容。
@@ -82,7 +83,7 @@ Popup / Onboarding / Settings
 - 规则语法兼容 Mihomo 常见 domain provider 写法，可直接使用兼容的远程 YAML 订阅。
 - 默认 Pinterest 规则来自 MetaCubeX：`meta-rules-dat/meta/geo/geosite/pinterest.yaml`。
 - 其他产品默认规则及 URL 统一维护在 `src/rule-packs/catalog.ts`。
-- 网络出口检测使用 `myip.ipip.net` 与 `api.ip.sb`。
+- 网络出口检测使用 `myip.ipip.net` 获取国内直连出口，使用 `api.ip.sb/geoip` 获取代理出口。
 - 浏览器能力来自 Chrome MV3 API：`chrome.proxy`、`chrome.storage`、`chrome.alarms`、`chrome.runtime` 与可选域名权限。
 
 ## 关键文件

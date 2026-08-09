@@ -37,22 +37,26 @@ DOMAIN,Example.com,DIRECT
   );
 });
 
-test("reports unsupported, missing, and invalid rules", () => {
+test("parses IPv4 CIDR and reports unsupported, missing, and invalid rules", () => {
   const result = parseRules(`IP-CIDR,1.1.1.0/24,PROXY
+IP-CIDR,192.168.1.8/99,DIRECT
 DOMAIN,,DIRECT
 DOMAIN-SUFFIX,https://example.com,PROXY
 MATCH,DIRECT
 FINAL,PROXY`);
 
-  assert.equal(result.rules.length, 0);
+  assert.deepEqual(
+    result.rules.map(({ type, value, action }) => ({ type, value, action })),
+    [{ type: "IP-CIDR", value: "1.1.1.0/24", action: "PROXY" }],
+  );
   assert.deepEqual(
     result.issues.map(({ lineNumber, message }) => ({ lineNumber, message })),
     [
-      { lineNumber: 1, message: "暂不支持的规则类型：IP-CIDR" },
-      { lineNumber: 2, message: "规则缺少匹配内容" },
-      { lineNumber: 3, message: "无效的匹配内容：https://example.com" },
-      { lineNumber: 4, message: "暂不支持的规则类型：MATCH" },
-      { lineNumber: 5, message: "暂不支持的规则类型：FINAL" },
+      { lineNumber: 2, message: "无效的匹配内容：192.168.1.8/99" },
+      { lineNumber: 3, message: "规则缺少匹配内容" },
+      { lineNumber: 4, message: "无效的匹配内容：https://example.com" },
+      { lineNumber: 5, message: "暂不支持的规则类型：MATCH" },
+      { lineNumber: 6, message: "暂不支持的规则类型：FINAL" },
     ],
   );
 });
@@ -73,6 +77,27 @@ DOMAIN,after.example,PROXY`);
   assert.ok(suffixIndex > exactIndex);
   assert.match(result.script, /after\.example/);
   assert.match(result.script, /return "DIRECT";/);
+});
+
+test("builds local CIDR rules and lets earlier user rules override built-ins", () => {
+  const custom = {
+    id: "custom-local-proxy",
+    name: "Private service",
+    description: "test",
+    enabledByDefault: true,
+    defaultUrl: "",
+    defaultAction: "PROXY" as const,
+    rulesText: "IP-CIDR,192.168.1.0/24,PROXY",
+  };
+  const compiled = compileRulePacks(
+    [custom, ...BUILTIN_RULE_PACKS],
+    [custom.id, ...BUILTIN_RULE_PACKS.map((pack) => pack.id)],
+  );
+  const result = buildPacScript(compiled.rules, { host: "127.0.0.1", port: 7890 }, "PROXY");
+
+  assert.equal(ruleMatchesHostname(compiled.rules[0], "192.168.1.20"), true);
+  assert.match(result.script, /isInNet\(host, "192\.168\.1\.0", "255\.255\.255\.0"\).*PROXY/);
+  assert.ok(result.script.indexOf('"192.168.1.0"') < result.script.indexOf('"192.168.0.0"'));
 });
 
 test("routes managed rule source hosts through the configured proxy before user rules", () => {
@@ -282,12 +307,15 @@ DOMAIN,api.example.com,PROXY`,
 test("uses the same exact, suffix, and keyword semantics for diagnostics", () => {
   const rules = parseRules(`DOMAIN,api.example.com,DIRECT
 DOMAIN-SUFFIX,google.com,PROXY
-DOMAIN-KEYWORD,pinterest,PROXY`).rules;
+DOMAIN-KEYWORD,pinterest,PROXY
+IP-CIDR,10.0.0.0/8,DIRECT`).rules;
 
   assert.equal(ruleMatchesHostname(rules[0], "api.example.com"), true);
   assert.equal(ruleMatchesHostname(rules[0], "www.api.example.com"), false);
   assert.equal(ruleMatchesHostname(rules[1], "mail.google.com"), true);
   assert.equal(ruleMatchesHostname(rules[2], "www.pinterest.de"), true);
+  assert.equal(ruleMatchesHostname(rules[3], "10.23.45.67"), true);
+  assert.equal(ruleMatchesHostname(rules[3], "11.23.45.67"), false);
 });
 
 test("custom catalog order overrides a conflicting managed rule", () => {

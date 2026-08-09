@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  DISABLED_REFRESH_INTERVAL_MINUTES,
   formatRefreshInterval,
   isValidRefreshIntervalMinutes,
   legacyHoursToMinutes,
   normalizeRefreshIntervalMinutes,
+  refreshStatusThresholds,
   refreshUnitMultiplier,
 } from "../src/shared/refresh-interval.ts";
+import { storedRefreshIntervalMinutes } from "../src/settings/refresh-controls.ts";
 
 test("validates refresh intervals in minutes", () => {
   assert.equal(isValidRefreshIntervalMinutes(1), true);
@@ -33,4 +36,20 @@ test("formats update intervals using the largest exact unit", () => {
   assert.equal(refreshUnitMultiplier("minute"), 1);
   assert.equal(refreshUnitMultiplier("hour"), 60);
   assert.equal(refreshUnitMultiplier("day"), 1_440);
+});
+
+test("preserves the disabled proxy refresh setting", () => {
+  assert.equal(DISABLED_REFRESH_INTERVAL_MINUTES, 0);
+  assert.equal(storedRefreshIntervalMinutes({ proxyRefresh: 0 }, "proxyRefresh", "legacy", 360), 0);
+});
+
+test("derives reminder thresholds from the automatic refresh interval", () => {
+  assert.deepEqual(refreshStatusThresholds(true, 720, 360, 1_440), {
+    freshMinutes: 900,
+    staleMinutes: 1_440,
+  });
+  assert.deepEqual(refreshStatusThresholds(false, 0, 360, 1_440), {
+    freshMinutes: 360,
+    staleMinutes: 1_440,
+  });
 });

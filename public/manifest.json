@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Auto Proxy",
   "description": "轻量 Chrome 规则分流代理扩展。",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "permissions": [
     "storage",
     "proxy",
@@ -12,8 +12,7 @@
   "host_permissions": [
     "https://raw.githubusercontent.com/*",
     "https://myip.ipip.net/*",
-    "https://api.ip.sb/*",
-    "https://dufs.ms.y3-3am.top/*"
+    "https://api.ip.sb/*"
   ],
   "optional_host_permissions": [
     "http://*/*",

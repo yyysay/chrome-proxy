@@ -4,11 +4,13 @@ import type {
   NetworkInfoResult,
   NetworkRouteInfo,
 } from "../shared/network-types.ts";
+import { networkCacheIsHealthy, networkCacheMatchesProxy } from "../shared/network-health.ts";
 import { NETWORK_INFO_CACHE_KEY } from "../shared/storage-keys.ts";
 import { requiredElement } from "./dom.ts";
 import { getProviderState } from "./provider-state.ts";
 import { formatDateTime, relativeTimeLabel, timeAgeMs } from "./relative-time.ts";
 import { sendMessage } from "./runtime-client.ts";
+import { setStatusBadge } from "./status-badge.ts";
 import { showToast } from "./toast.ts";
 
 const NETWORK_FRESH_MINUTES = 15;
@@ -31,25 +33,20 @@ let currentNetworkCheckedAt: string | undefined;
 function updateNetworkFreshness(): void {
   const ageMs = timeAgeMs(currentNetworkCheckedAt);
   if (!Number.isFinite(ageMs)) {
-    networkLastChecked.textContent = "尚未检测";
-    networkLastChecked.className = "text-sm font-bold text-stone-400 dark:text-white/40";
-    networkLastChecked.removeAttribute("title");
+    setStatusBadge(networkLastChecked, "尚未检测", "idle");
     return;
   }
 
   const minutes = Math.floor(ageMs / 60_000);
   const relative = minutes < 1 ? "刚刚检测" : relativeTimeLabel(currentNetworkCheckedAt);
-  networkLastChecked.title = formatDateTime(currentNetworkCheckedAt);
+  const title = formatDateTime(currentNetworkCheckedAt);
 
   if (minutes < NETWORK_FRESH_MINUTES) {
-    networkLastChecked.textContent = relative;
-    networkLastChecked.className = "text-sm font-bold text-emerald-600 dark:text-[#30d158]";
+    setStatusBadge(networkLastChecked, relative, "fresh", title, true);
   } else if (minutes < NETWORK_STALE_MINUTES) {
-    networkLastChecked.textContent = relative;
-    networkLastChecked.className = "text-sm font-bold text-amber-600 dark:text-[#ff9f0a]";
+    setStatusBadge(networkLastChecked, relative, "stale", title);
   } else {
-    networkLastChecked.textContent = `${relative} · 建议刷新`;
-    networkLastChecked.className = "text-sm font-bold text-red-600 dark:text-[#ff6961]";
+    setStatusBadge(networkLastChecked, `${relative} · 建议刷新`, "error", title);
   }
 }
 
@@ -64,21 +61,20 @@ function formatNetworkLocation(info: NetworkRouteInfo): string {
 function setHealth(healthy: boolean, checking = false): void {
   proxyHealthBadge.dataset.state = checking ? "checking" : healthy ? "healthy" : "unhealthy";
   proxyHealthText.textContent = checking ? "代理检测中" : healthy ? "代理健康" : "代理异常";
-  const dot = proxyHealthBadge.querySelector<HTMLElement>("[data-health-dot]");
+  const symbol = proxyHealthBadge.querySelector<SVGPathElement>("[data-health-symbol]");
   const classes = checking
-    ? ["border-amber-100 dark:border-[#ff9f0a]/40", "bg-amber-50 dark:bg-[#ff9f0a]/15", "text-amber-700 dark:text-[#ff9f0a]", "bg-amber-500 dark:bg-[#ff9f0a]"]
+    ? ["border-amber-100 dark:border-[#ff9f0a]/40", "bg-amber-50 dark:bg-[#ff9f0a]/15", "text-amber-700 dark:text-[#ff9f0a]"]
     : healthy
-      ? ["border-emerald-100 dark:border-[#30d158]/35", "bg-emerald-50 dark:bg-[#30d158]/15", "text-emerald-700 dark:text-[#30d158]", "bg-emerald-500 dark:bg-[#30d158]"]
-      : ["border-red-100 dark:border-[#ff453a]/40", "bg-red-50 dark:bg-[#ff453a]/15", "text-red-700 dark:text-[#ff453a]", "bg-red-500 dark:bg-[#ff453a]"];
+      ? ["border-emerald-100 dark:border-[#30d158]/35", "bg-emerald-50 dark:bg-[#30d158]/15", "text-emerald-700 dark:text-[#30d158]"]
+      : ["border-red-100 dark:border-[#ff453a]/40", "bg-red-50 dark:bg-[#ff453a]/15", "text-red-700 dark:text-[#ff453a]"];
   proxyHealthBadge.className = `inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-extrabold ${classes[0]} ${classes[1]} ${classes[2]}`;
-  if (dot) dot.className = `size-2 rounded-full ${classes[3]}`;
+  if (symbol) {
+    symbol.setAttribute("d", checking ? "M8 12h2m4 0h2" : healthy ? "M7 12h10" : "M7 12h3m4 0h3");
+  }
 }
 
 function cacheMatchesActive(cache: unknown, state: ProxyProviderState): cache is NetworkInfoCache {
-  if (!cache || typeof cache !== "object") return false;
-  const value = cache as Partial<NetworkInfoCache>;
-  return value.host === state.activeProxy.host && value.port === state.activeProxy.port &&
-    typeof value.checkedAt === "string";
+  return networkCacheMatchesProxy(cache, state);
 }
 
 function resetNetworkInfo(): void {
@@ -105,7 +101,7 @@ function renderNetworkInfo(cache: NetworkInfoCache): void {
 
   currentNetworkCheckedAt = cache.checkedAt;
   updateNetworkFreshness();
-  setHealth(Boolean(direct && proxy && direct.ip !== proxy.ip));
+  setHealth(networkCacheIsHealthy(cache));
 }
 
 export async function restoreNetworkInfoForState(state: ProxyProviderState): Promise<void> {
@@ -125,7 +121,8 @@ export async function refreshNetworkInfo(showProgressToast = true): Promise<void
   const stateAtStart = providerState;
   refreshNetworkInfoButton.dataset.running = "true";
   refreshNetworkInfoButton.disabled = true;
-  refreshNetworkInfoButton.textContent = "检测中";
+  refreshNetworkInfoButton.title = "正在刷新网络信息";
+  refreshNetworkInfoButton.setAttribute("aria-label", "正在刷新网络信息");
   setHealth(false, true);
   if (showProgressToast) showToast("正在检测两个公网出口…", "info");
 
@@ -171,7 +168,8 @@ export async function refreshNetworkInfo(showProgressToast = true): Promise<void
   } finally {
     refreshNetworkInfoButton.dataset.running = "false";
     refreshNetworkInfoButton.disabled = false;
-    refreshNetworkInfoButton.textContent = "刷新";
+    refreshNetworkInfoButton.title = "刷新网络信息";
+    refreshNetworkInfoButton.setAttribute("aria-label", "刷新网络信息");
   }
 }
 

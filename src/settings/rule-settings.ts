@@ -1,4 +1,4 @@
-import type { RefreshUnit } from "../shared/refresh-interval.ts";
+import { refreshStatusThresholds, type RefreshUnit } from "../shared/refresh-interval.ts";
 import type {
   FallbackMode,
   RuleSourceStrategy,
@@ -18,6 +18,7 @@ import {
 } from "./relative-time.ts";
 import { requestUrlPermission, sendMessage } from "./runtime-client.ts";
 import { showToast } from "./toast.ts";
+import { setStatusBadge } from "./status-badge.ts";
 import type { RulePackSetting } from "./types.ts";
 
 const managedRuleCount = requiredElement<HTMLElement>("#managed-rule-count");
@@ -62,6 +63,8 @@ const remoteRuleContentCloseButton = requiredElement<HTMLButtonElement>("#remote
 let rulePackSettings: RulePackSetting[] = [];
 let editingRulePack: RulePackSetting | null = null;
 let ruleListExpanded = false;
+let ruleAutoRefreshEnabled = true;
+let ruleAutoRefreshIntervalMinutes = 1_440;
 
 const COLLAPSED_RULE_LIMIT = 4;
 const MAX_LOCAL_RULE_FILE_BYTES = 2 * 1024 * 1024;
@@ -96,18 +99,21 @@ function renderDefaultUpdateStatus(settings: readonly RulePackSetting[]): void {
 
   clearRelativeTimeStatus(managedRuleCount);
   if (updatedAt) {
+    const thresholds = refreshStatusThresholds(
+      ruleAutoRefreshEnabled,
+      ruleAutoRefreshIntervalMinutes,
+      1_440,
+      10_080,
+    );
     setRelativeTimeStatus(managedRuleCount, updatedAt, {
       prefix: "更新于 ",
-      baseClass: "shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-extrabold dark:bg-white/8",
-      freshMinutes: 1_440,
-      staleMinutes: 10_080,
+      baseClass: "status-badge",
+      ...thresholds,
+      hideWhenFresh: ruleAutoRefreshEnabled,
     });
   } else {
     const updateFailed = managed.some((pack) => Boolean(pack.source.error));
-    managedRuleCount.className = updateFailed
-      ? "shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-extrabold text-red-700 dark:bg-[#ff453a]/15 dark:text-[#ff6961]"
-      : "shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-extrabold text-stone-500 dark:bg-white/8 dark:text-white/55";
-    managedRuleCount.textContent = updateFailed ? "更新失败" : "尚未更新";
+    setStatusBadge(managedRuleCount, updateFailed ? "更新失败" : "尚未更新", updateFailed ? "error" : "idle");
   }
 
 }
@@ -210,22 +216,32 @@ function ruleEditorMetaDetails(pack: RulePackSetting): string {
 
 function renderRuleEditorMeta(pack?: RulePackSetting): void {
   const updatedAt = pack ? latestRuleUpdate(pack) : undefined;
+  ruleEditorMeta.hidden = !pack;
+  if (!pack) {
+    clearRelativeTimeStatus(ruleEditorMeta);
+    return;
+  }
   if (pack && updatedAt) {
     const details = ruleEditorMetaDetails(pack);
+    const thresholds = refreshStatusThresholds(
+      ruleAutoRefreshEnabled,
+      ruleAutoRefreshIntervalMinutes,
+      1_440,
+      10_080,
+    );
     setRelativeTimeStatus(ruleEditorMeta, updatedAt, {
       prefix: "更新于 ",
       suffix: details ? ` · ${details}` : "",
-      baseClass: "mt-3 text-sm font-semibold",
-      freshMinutes: 1_440,
-      staleMinutes: 10_080,
+      baseClass: "status-badge mt-2",
+      ...thresholds,
+      hideWhenFresh: ruleAutoRefreshEnabled,
     });
     return;
   }
   clearRelativeTimeStatus(ruleEditorMeta);
-  ruleEditorMeta.className = "mt-3 text-sm text-stone-400 dark:text-white/40";
-  ruleEditorMeta.textContent = pack
-    ? [formatRuleUpdate(pack), ruleEditorMetaDetails(pack)].filter(Boolean).join(" · ")
-    : "匹配顺序：自定义规则 → 默认规则 → 内置规则。";
+  const label = [formatRuleUpdate(pack), ruleEditorMetaDetails(pack)].filter(Boolean).join(" · ");
+  setStatusBadge(ruleEditorMeta, label, pack.source.error ? "error" : "idle", pack.source.error);
+  ruleEditorMeta.classList.add("mt-2");
 }
 
 function renderSourceStrategyHint(): void {
@@ -384,6 +400,10 @@ async function saveAutoRefreshSettings(): Promise<void> {
   setRefreshControlsDisabled(!enabled, autoRefreshInterval, autoRefreshCustomValue, autoRefreshCustomUnit);
   const response = await sendMessage({ type: "UPDATE_RULE_AUTO_REFRESH", enabled, intervalMinutes });
   if (!response.ok) throw new Error(response.error ?? "自动更新设置保存失败");
+  ruleAutoRefreshEnabled = enabled;
+  ruleAutoRefreshIntervalMinutes = intervalMinutes;
+  renderRulePacks(rulePackSettings);
+  if (editingRulePack) renderRuleEditorMeta(editingRulePack);
   showToast(response.message ?? "自动更新设置已保存", "success");
 }
 
@@ -392,6 +412,8 @@ export function initializeRuleSettings(
   fallbackMode: FallbackMode,
   autoRefresh: { enabled: boolean; intervalMinutes: number },
 ): void {
+  ruleAutoRefreshEnabled = autoRefresh.enabled;
+  ruleAutoRefreshIntervalMinutes = autoRefresh.intervalMinutes;
   renderRulePacks(settings);
   renderFallbackMode(fallbackMode);
   autoRefreshEnabled.checked = autoRefresh.enabled;

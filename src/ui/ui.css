@@ -6,6 +6,63 @@
 
 [hidden] { display: none !important; }
 
+.status-badge {
+  display: inline-flex;
+  min-height: 1.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.status-badge[data-status-tone="idle"] { background: rgb(231 229 228); color: rgb(87 83 78); }
+.status-badge[data-status-tone="fresh"] { background: rgb(209 250 229); color: rgb(4 120 87); }
+.status-badge[data-status-tone="stale"] { background: rgb(254 243 199); color: rgb(180 83 9); }
+.status-badge[data-status-tone="error"] { background: rgb(254 226 226); color: rgb(185 28 28); }
+
+.settings-page select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  padding-right: 2.5rem !important;
+  text-align: left;
+}
+
+.dialog-close {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 9999px;
+  background: rgb(254 242 242);
+  color: rgb(185 28 28 / 0.72);
+  transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.dialog-close:hover { background: rgb(254 226 226); color: rgb(185 28 28); }
+.dialog-close:active { transform: scale(0.94); }
+.dialog-close:focus-visible { outline: 2px solid rgb(59 130 246); outline-offset: 2px; }
+.dialog-close svg { width: 1.125rem; height: 1.125rem; }
+
+@media (prefers-color-scheme: dark) {
+  .settings-page select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2398989d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+  }
+  .dialog-close { background: rgb(255 69 58 / 0.12); color: rgb(255 105 97 / 0.78); }
+  .dialog-close:hover { background: rgb(255 69 58 / 0.2); color: rgb(255 105 97); }
+  .status-badge[data-status-tone="idle"] { background: rgb(255 255 255 / 0.1); color: rgb(255 255 255 / 0.65); }
+  .status-badge[data-status-tone="fresh"] { background: rgb(48 209 88 / 0.15); color: rgb(48 209 88); }
+  .status-badge[data-status-tone="stale"] { background: rgb(255 159 10 / 0.15); color: rgb(255 159 10); }
+  .status-badge[data-status-tone="error"] { background: rgb(255 69 58 / 0.15); color: rgb(255 105 97); }
+}
+
 dialog::backdrop {
   background: rgb(28 25 23 / 0.28);
   backdrop-filter: blur(4px);

@@ -1,5 +1,5 @@
 import type { ProxyProviderState } from "../proxy/proxy-provider.ts";
-import type { RefreshUnit } from "../shared/refresh-interval.ts";
+import { refreshStatusThresholds, type RefreshUnit } from "../shared/refresh-interval.ts";
 import { requiredElement } from "./dom.ts";
 import {
   refreshNetworkInfo,
@@ -17,18 +17,13 @@ import {
   setRelativeTimeStatus,
 } from "./relative-time.ts";
 import { requestUrlPermission, sendMessage } from "./runtime-client.ts";
+import { setStatusBadge } from "./status-badge.ts";
 import { showToast } from "./toast.ts";
 
 type ProxySourceMode = ProxyProviderState["sourceMode"];
 
-const openProxySourcePickerButton = requiredElement<HTMLButtonElement>("#open-proxy-source-picker");
-const proxySourceValue = requiredElement<HTMLElement>("#proxy-source-value");
-const proxySourceSettingsTitle = requiredElement<HTMLElement>("#proxy-source-settings-title");
-const proxySourceSettingsDetail = requiredElement<HTMLElement>("#proxy-source-settings-detail");
-const proxySourcePickerDialog = requiredElement<HTMLDialogElement>("#proxy-source-picker-dialog");
-const proxySourcePickerCloseButton = requiredElement<HTMLButtonElement>("#proxy-source-picker-close");
 const proxySourceOptionButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-proxy-source-option]"));
-const proxySourceCheckmarks = Array.from(document.querySelectorAll<SVGElement>("[data-proxy-source-check]"));
+const proxySourceCheckmarks = Array.from(document.querySelectorAll<HTMLElement>("[data-proxy-source-check]"));
 const subscriptionSettings = requiredElement<HTMLElement>("#subscription-settings");
 const manualSettings = requiredElement<HTMLElement>("#manual-settings");
 const subscriptionForm = requiredElement<HTMLFormElement>("#subscription-form");
@@ -38,16 +33,32 @@ const refreshProxySubscriptionButton = requiredElement<HTMLButtonElement>("#refr
 const manualProxyForm = requiredElement<HTMLFormElement>("#manual-proxy-form");
 const manualHostInput = requiredElement<HTMLInputElement>("#manual-proxy-host");
 const manualPortInput = requiredElement<HTMLInputElement>("#manual-proxy-port");
-const proxyEditorDialog = requiredElement<HTMLDialogElement>("#proxy-editor-dialog");
-const proxyEditorTitle = requiredElement<HTMLElement>("#proxy-editor-title");
-const proxyEditorCloseButton = requiredElement<HTMLButtonElement>("#proxy-editor-close");
-const openProxyEditorButton = requiredElement<HTMLButtonElement>("#open-proxy-editor");
 const proxyRefreshInterval = requiredElement<HTMLSelectElement>("#proxy-refresh-interval");
 const proxyRefreshCustomGroup = requiredElement<HTMLElement>("#proxy-refresh-custom-group");
 const proxyRefreshCustomValue = requiredElement<HTMLInputElement>("#proxy-refresh-custom-value");
 const proxyRefreshCustomUnit = requiredElement<HTMLSelectElement>("#proxy-refresh-custom-unit");
 
 let pendingProxySourceMode: ProxySourceMode | undefined;
+let proxyAutoRefreshEnabled = true;
+let proxyRefreshIntervalMinutes = 360;
+
+const activeSourceClass = "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/10 dark:border-[#0a84ff] dark:bg-[#0a84ff]/10";
+const idleSourceClass = "border-stone-200 hover:border-stone-300 hover:bg-stone-50 dark:border-white/10 dark:hover:border-white/20 dark:hover:bg-white/5";
+
+function renderSourceSelection(visibleMode: ProxySourceMode, activeMode: ProxySourceMode): void {
+  subscriptionSettings.hidden = visibleMode !== "subscription";
+  manualSettings.hidden = visibleMode !== "manual";
+  for (const button of proxySourceOptionButtons) {
+    const mode = button.dataset.proxySourceOption === "manual" ? "manual" : "subscription";
+    const selected = mode === visibleMode;
+    button.setAttribute("aria-checked", String(selected));
+    button.className = `flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition ${selected ? activeSourceClass : idleSourceClass}`;
+  }
+  for (const checkmark of proxySourceCheckmarks) {
+    const mode = checkmark.dataset.proxySourceCheck === "manual" ? "manual" : "subscription";
+    checkmark.hidden = mode !== activeMode;
+  }
+}
 
 function endpointChanged(before: ProxyProviderState | undefined, after: ProxyProviderState): boolean {
   return !before || before.activeProxy.host !== after.activeProxy.host ||
@@ -60,33 +71,9 @@ function validateHost(host: string): boolean {
 
 export function renderProviderState(state: ProxyProviderState): void {
   setProviderState(state);
-  proxySourceValue.textContent = state.sourceMode === "subscription" ? "代理订阅" : "手动代理";
-  proxySourceSettingsTitle.textContent = state.sourceMode === "subscription" ? "订阅设置" : "手动代理设置";
-  subscriptionSettings.hidden = state.sourceMode !== "subscription";
-  manualSettings.hidden = state.sourceMode !== "manual";
+  renderSourceSelection(pendingProxySourceMode ?? state.sourceMode, state.sourceMode);
   subscriptionUrlInput.value = state.subscriptionUrl;
   refreshProxySubscriptionButton.disabled = !state.subscriptionUrl;
-  if (state.sourceMode === "subscription" && state.subscription) {
-    setRelativeTimeStatus(proxySourceSettingsDetail, state.subscription.fetchedAt, {
-      prefix: "上次更新 ",
-      baseClass: "mt-0.5 block truncate text-xs font-bold",
-      freshMinutes: 360,
-      staleMinutes: 1_440,
-    });
-  } else {
-    clearRelativeTimeStatus(proxySourceSettingsDetail);
-    proxySourceSettingsDetail.className = "mt-0.5 block truncate text-xs text-stone-400 dark:text-white/40";
-    proxySourceSettingsDetail.textContent = state.sourceMode === "subscription"
-      ? state.subscriptionError ? "更新失败，请检查订阅" : "订阅尚未更新"
-      : state.manualOverride
-        ? `${state.manualOverride.host}:${state.manualOverride.port}`
-        : "手动代理尚未配置";
-  }
-  for (const checkmark of proxySourceCheckmarks) {
-    if (checkmark.dataset.proxySourceCheck === state.sourceMode) checkmark.removeAttribute("hidden");
-    else checkmark.setAttribute("hidden", "");
-  }
-
   if (state.manualOverride) {
     manualHostInput.value = state.manualOverride.host;
     manualPortInput.value = String(state.manualOverride.port);
@@ -96,30 +83,31 @@ export function renderProviderState(state: ProxyProviderState): void {
   if (subscriptionFailure) {
     clearRelativeTimeStatus(subscriptionStateBadge);
     subscriptionStateBadge.dataset.state = "error";
-    subscriptionStateBadge.className = "rounded-full bg-red-100 px-3 py-1 text-xs font-extrabold text-red-700 dark:bg-[#ff453a]/15 dark:text-[#ff453a]";
-    subscriptionStateBadge.textContent = "更新失败";
-    subscriptionStateBadge.title = subscriptionFailure;
+    setStatusBadge(subscriptionStateBadge, "更新失败", "error", subscriptionFailure);
   } else if (state.subscription) {
     subscriptionStateBadge.dataset.state = "ready";
+    const thresholds = refreshStatusThresholds(
+      proxyAutoRefreshEnabled,
+      proxyRefreshIntervalMinutes,
+      360,
+      1_440,
+    );
     setRelativeTimeStatus(subscriptionStateBadge, state.subscription.fetchedAt, {
-      baseClass: "rounded-full bg-stone-100 px-3 py-1 text-xs font-extrabold dark:bg-white/8",
-      freshMinutes: 360,
-      staleMinutes: 1_440,
+      baseClass: "status-badge",
+      ...thresholds,
+      hideWhenFresh: proxyAutoRefreshEnabled,
     });
     subscriptionStateBadge.title = `上次更新 ${formatDateTime(state.subscription.fetchedAt)}`;
   } else {
     clearRelativeTimeStatus(subscriptionStateBadge);
     subscriptionStateBadge.dataset.state = "idle";
-    subscriptionStateBadge.className = "rounded-full bg-stone-200 px-3 py-1 text-xs font-extrabold text-stone-600 dark:bg-white/10 dark:text-white/65";
-    subscriptionStateBadge.textContent = state.subscriptionUrl ? "待更新" : "未配置";
+    setStatusBadge(subscriptionStateBadge, state.subscriptionUrl ? "待更新" : "未配置", "idle");
   }
 }
 
-function openProxyEditor(mode: ProxySourceMode): void {
-  subscriptionSettings.hidden = mode !== "subscription";
-  manualSettings.hidden = mode !== "manual";
-  proxyEditorTitle.textContent = mode === "subscription" ? "编辑代理订阅" : "编辑手动代理";
-  proxyEditorDialog.showModal();
+function focusProxyEditor(mode: ProxySourceMode): void {
+  const activeMode = getProviderState()?.sourceMode ?? mode;
+  renderSourceSelection(mode, activeMode);
   if (mode === "subscription") subscriptionUrlInput.focus();
   else manualHostInput.focus();
 }
@@ -131,7 +119,8 @@ async function applyProviderState(state: ProxyProviderState, autoDetect: boolean
 }
 
 export function initializeProxySettings(state: ProxyProviderState, intervalMinutes: number): void {
-  renderProviderState(state);
+  proxyAutoRefreshEnabled = intervalMinutes !== 0;
+  proxyRefreshIntervalMinutes = intervalMinutes;
   renderRefreshInterval(
     proxyRefreshInterval,
     proxyRefreshCustomGroup,
@@ -139,6 +128,7 @@ export function initializeProxySettings(state: ProxyProviderState, intervalMinut
     proxyRefreshCustomUnit,
     intervalMinutes,
   );
+  renderProviderState(state);
 }
 
 subscriptionForm.addEventListener("submit", (event) => {
@@ -169,7 +159,6 @@ subscriptionForm.addEventListener("submit", (event) => {
     }
     await applyProviderState(nextState, firstSuccessfulLoad || endpointChanged(before, nextState));
     pendingProxySourceMode = undefined;
-    proxyEditorDialog.close();
     showToast(response.data.updateFailed ?? response.message ?? "代理订阅已保存",
       response.data.updateFailed || response.data.usedCached ? "warning" : "success");
   })().catch((error) => showToast(error instanceof Error ? error.message : "代理订阅保存失败", "error"));
@@ -196,19 +185,23 @@ refreshProxySubscriptionButton.addEventListener("click", () => {
 });
 
 async function selectProxySource(mode: ProxySourceMode): Promise<void> {
-  proxySourcePickerDialog.close();
   const providerState = getProviderState();
-  if (!providerState || mode === providerState.sourceMode) return;
+  if (!providerState) return;
+  if (mode === providerState.sourceMode) {
+    pendingProxySourceMode = undefined;
+    focusProxyEditor(mode);
+    return;
+  }
 
   if (mode === "manual" && !providerState.manualOverride) {
     pendingProxySourceMode = "manual";
-    openProxyEditor("manual");
+    focusProxyEditor("manual");
     showToast("请先保存手动代理，保存后会自动切换", "info");
     return;
   }
   if (mode === "subscription" && !providerState.subscription) {
     pendingProxySourceMode = "subscription";
-    openProxyEditor("subscription");
+    focusProxyEditor("subscription");
     showToast("请先保存并更新代理订阅，成功后会自动切换", "info");
     return;
   }
@@ -227,7 +220,6 @@ async function selectProxySource(mode: ProxySourceMode): Promise<void> {
   }
 }
 
-openProxySourcePickerButton.addEventListener("click", () => proxySourcePickerDialog.showModal());
 for (const button of proxySourceOptionButtons) {
   button.addEventListener("click", () => {
     const mode = button.dataset.proxySourceOption === "manual" ? "manual" : "subscription";
@@ -238,10 +230,6 @@ for (const button of proxySourceOptionButtons) {
     });
   });
 }
-proxySourcePickerCloseButton.addEventListener("click", () => proxySourcePickerDialog.close());
-proxySourcePickerDialog.addEventListener("click", (event) => {
-  if (event.target === proxySourcePickerDialog) proxySourcePickerDialog.close();
-});
 
 manualProxyForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -255,26 +243,9 @@ manualProxyForm.addEventListener("submit", (event) => {
     if (!response.ok || !response.data) throw new Error(response.error ?? "手动代理保存失败");
     await applyProviderState(response.data.state, endpointChanged(before, response.data.state));
     pendingProxySourceMode = undefined;
-    proxyEditorDialog.close();
     showToast(response.message ?? "手动代理已保存", "success");
   })().catch((error) => showToast(error instanceof Error ? error.message : "手动代理保存失败", "error"));
 });
-
-openProxyEditorButton.addEventListener("click", () => {
-  pendingProxySourceMode = undefined;
-  openProxyEditor(getProviderState()?.sourceMode ?? "subscription");
-});
-proxyEditorCloseButton.addEventListener("click", () => {
-  pendingProxySourceMode = undefined;
-  proxyEditorDialog.close();
-});
-proxyEditorDialog.addEventListener("click", (event) => {
-  if (event.target === proxyEditorDialog) {
-    pendingProxySourceMode = undefined;
-    proxyEditorDialog.close();
-  }
-});
-proxyEditorDialog.addEventListener("close", () => { pendingProxySourceMode = undefined; });
 
 async function saveProxyRefreshInterval(): Promise<void> {
   const intervalMinutes = selectedRefreshInterval(
@@ -284,6 +255,10 @@ async function saveProxyRefreshInterval(): Promise<void> {
   );
   const response = await sendMessage({ type: "UPDATE_PROXY_SUBSCRIPTION_REFRESH", intervalMinutes });
   if (!response.ok) throw new Error(response.error ?? "更新时间保存失败");
+  proxyAutoRefreshEnabled = intervalMinutes !== 0;
+  proxyRefreshIntervalMinutes = intervalMinutes;
+  const state = getProviderState();
+  if (state) renderProviderState(state);
   showToast(response.message ?? "代理订阅更新时间已保存", "success");
 }
 

@@ -4,6 +4,7 @@ import {
   refreshProxySubscription,
 } from "../proxy/proxy-manager.ts";
 import {
+  DISABLED_REFRESH_INTERVAL_MINUTES,
   isValidRefreshIntervalMinutes,
   legacyHoursToMinutes,
   MAX_REFRESH_INTERVAL_MINUTES,
@@ -86,6 +87,10 @@ export async function syncProxySubscriptionAlarm(): Promise<void> {
     PROXY_SUBSCRIPTION_REFRESH_INTERVAL_KEY,
     LEGACY_PROXY_SUBSCRIPTION_REFRESH_INTERVAL_KEY,
   ]);
+  if (Number(stored[PROXY_SUBSCRIPTION_REFRESH_INTERVAL_KEY]) === DISABLED_REFRESH_INTERVAL_MINUTES) {
+    await chrome.alarms.clear(PROXY_SUBSCRIPTION_REFRESH_ALARM);
+    return;
+  }
   const legacyMinutes = legacyHoursToMinutes(stored[LEGACY_PROXY_SUBSCRIPTION_REFRESH_INTERVAL_KEY]);
   const intervalMinutes = normalizeRefreshIntervalMinutes(
     stored[PROXY_SUBSCRIPTION_REFRESH_INTERVAL_KEY],
@@ -99,6 +104,13 @@ export async function syncProxySubscriptionAlarm(): Promise<void> {
 export async function updateProxySubscriptionRefreshInterval(
   intervalMinutes: number,
 ): Promise<number> {
+  if (intervalMinutes === DISABLED_REFRESH_INTERVAL_MINUTES) {
+    await chrome.storage.local.set({
+      [PROXY_SUBSCRIPTION_REFRESH_INTERVAL_KEY]: DISABLED_REFRESH_INTERVAL_MINUTES,
+    });
+    await chrome.alarms.clear(PROXY_SUBSCRIPTION_REFRESH_ALARM);
+    return DISABLED_REFRESH_INTERVAL_MINUTES;
+  }
   if (!isValidRefreshIntervalMinutes(intervalMinutes)) {
     throw new Error(`代理订阅更新间隔需为 ${MIN_REFRESH_INTERVAL_MINUTES} 到 ${MAX_REFRESH_INTERVAL_MINUTES} 分钟的整数`);
   }

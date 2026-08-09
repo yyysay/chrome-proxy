@@ -26,6 +26,12 @@ function relativeToneClass(minutes: number, freshMinutes: number, staleMinutes: 
   return "text-red-600 dark:text-[#ff6961]";
 }
 
+function relativeTone(minutes: number, freshMinutes: number, staleMinutes: number): "fresh" | "stale" | "error" {
+  if (minutes < freshMinutes) return "fresh";
+  if (minutes < staleMinutes) return "stale";
+  return "error";
+}
+
 export function setRelativeTimeStatus(
   element: HTMLElement,
   value: string,
@@ -36,6 +42,7 @@ export function setRelativeTimeStatus(
     staleMinutes: number;
     suffix?: string;
     staleSuffix?: string;
+    hideWhenFresh?: boolean;
   },
 ): void {
   element.dataset.relativeTime = value;
@@ -45,6 +52,7 @@ export function setRelativeTimeStatus(
   element.dataset.relativeStaleMinutes = String(options.staleMinutes);
   element.dataset.relativeSuffix = options.suffix ?? "";
   element.dataset.relativeStaleSuffix = options.staleSuffix ?? "";
+  element.dataset.relativeHideWhenFresh = String(options.hideWhenFresh === true);
   element.title = formatDateTime(value);
   refreshRelativeTimeElement(element);
 }
@@ -52,7 +60,7 @@ export function setRelativeTimeStatus(
 export function clearRelativeTimeStatus(element: HTMLElement): void {
   for (const key of [
     "relativeTime", "relativePrefix", "relativeBaseClass", "relativeFreshMinutes",
-    "relativeStaleMinutes", "relativeSuffix", "relativeStaleSuffix",
+    "relativeStaleMinutes", "relativeSuffix", "relativeStaleSuffix", "relativeHideWhenFresh",
   ]) delete element.dataset[key];
   element.removeAttribute("title");
 }
@@ -67,6 +75,9 @@ function refreshRelativeTimeElement(element: HTMLElement): void {
   const suffix = element.dataset.relativeSuffix ?? "";
   const staleSuffix = minutes >= staleMinutes ? element.dataset.relativeStaleSuffix ?? "" : "";
   element.textContent = `${prefix}${relativeTimeLabel(value)}${suffix}${staleSuffix}`;
+  const tone = relativeTone(minutes, freshMinutes, staleMinutes);
+  element.dataset.statusTone = tone;
+  element.hidden = element.dataset.relativeHideWhenFresh === "true" && tone === "fresh";
   element.className = `${element.dataset.relativeBaseClass ?? ""} ${relativeToneClass(minutes, freshMinutes, staleMinutes)}`.trim();
 }
 

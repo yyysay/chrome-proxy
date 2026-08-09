@@ -11,18 +11,15 @@ import {
 } from "../rule-packs/repository.ts";
 import {
   ENABLED_RULE_PACK_IDS_KEY,
+  DISABLED_DEFAULT_RULE_PACK_IDS_KEY,
   LEGACY_RULE_SOURCE_STRATEGIES_KEY,
-  PROXY_SUBSCRIPTION_CACHE_KEY,
-  PROXY_SUBSCRIPTION_ERROR_KEY,
-  PROXY_SUBSCRIPTION_URL_KEY,
+  MANAGED_RULE_OVERRIDES_KEY,
   RULE_PACK_DEFINITIONS_KEY,
   RULE_PACK_SOURCES_KEY,
   SIMPLE_ENABLED_RULE_PACK_IDS_KEY,
   UI_MODE_KEY,
 } from "../shared/storage-keys.ts";
 import { migrateLegacyProxyConfig } from "./proxy-provider.ts";
-
-const LEGACY_DEFAULT_PROXY_SUBSCRIPTION_URL = "https://dufs.ms.y3-3am.top/autoproxy/proxies.json";
 
 export async function migrateStoredData(): Promise<void> {
   await migrateLegacyProxyConfig();
@@ -33,10 +30,11 @@ export async function migrateStoredData(): Promise<void> {
     chrome.storage.local.get([
       "schemaVersion",
       LEGACY_RULE_SOURCE_STRATEGIES_KEY,
-      PROXY_SUBSCRIPTION_URL_KEY,
+      DISABLED_DEFAULT_RULE_PACK_IDS_KEY,
+      MANAGED_RULE_OVERRIDES_KEY,
     ]),
   ]);
-  if (stored.schemaVersion === 6) return;
+  if (stored.schemaVersion === 7) return;
 
   const knownCustomIds = new Set(customDefinitions.map((pack) => pack.id));
   const legacyStrategies = stored[LEGACY_RULE_SOURCE_STRATEGIES_KEY] &&
@@ -58,23 +56,27 @@ export async function migrateStoredData(): Promise<void> {
     };
   }
 
+  const disabledDefaults = Array.isArray(stored[DISABLED_DEFAULT_RULE_PACK_IDS_KEY])
+    ? stored[DISABLED_DEFAULT_RULE_PACK_IDS_KEY].filter((id): id is string =>
+      typeof id === "string" && MANAGED_RULE_PACK_IDS.includes(id))
+    : [];
+  const rawOverrides = stored[MANAGED_RULE_OVERRIDES_KEY];
+  const migratedOverrides = rawOverrides && typeof rawOverrides === "object" && !Array.isArray(rawOverrides)
+    ? Object.fromEntries(Object.entries(rawOverrides).filter(([id]) => MANAGED_RULE_PACK_IDS.includes(id)))
+    : {};
+
   await chrome.storage.local.set({
-    schemaVersion: 6,
+    schemaVersion: 7,
     [RULE_PACK_DEFINITIONS_KEY]: customDefinitions,
     [ENABLED_RULE_PACK_IDS_KEY]: enabledIds.filter((id) => knownCustomIds.has(id)),
     [RULE_PACK_SOURCES_KEY]: migratedSources,
+    [DISABLED_DEFAULT_RULE_PACK_IDS_KEY]: disabledDefaults,
+    [MANAGED_RULE_OVERRIDES_KEY]: migratedOverrides,
   });
   const obsoleteKeys = [
     LEGACY_RULE_SOURCE_STRATEGIES_KEY,
     SIMPLE_ENABLED_RULE_PACK_IDS_KEY,
     UI_MODE_KEY,
   ];
-  if (stored[PROXY_SUBSCRIPTION_URL_KEY] === LEGACY_DEFAULT_PROXY_SUBSCRIPTION_URL) {
-    obsoleteKeys.push(
-      PROXY_SUBSCRIPTION_URL_KEY,
-      PROXY_SUBSCRIPTION_CACHE_KEY,
-      PROXY_SUBSCRIPTION_ERROR_KEY,
-    );
-  }
   await chrome.storage.local.remove(obsoleteKeys);
 }

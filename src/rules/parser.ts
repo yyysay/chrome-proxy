@@ -5,11 +5,13 @@ import type {
   RuleAction,
   RuleType,
 } from "./types";
+import { normalizeIPv4Cidr } from "./ip-cidr.ts";
 
 const SUPPORTED_TYPES = new Set([
   "DOMAIN",
   "DOMAIN-SUFFIX",
   "DOMAIN-KEYWORD",
+  "IP-CIDR",
 ]);
 
 function normalizeLine(rawLine: string): string {
@@ -76,10 +78,13 @@ function normalizeRuleValue(
     return normalized.replace(/^\.+/, "");
   }
 
+  if (rawType === "IP-CIDR") return normalizeIPv4Cidr(normalized) ?? normalized;
+
   return normalized;
 }
 
 function isValidRuleValue(type: string, value: string): boolean {
+  if (type === "IP-CIDR") return Boolean(normalizeIPv4Cidr(value));
   if (type === "DOMAIN-KEYWORD") {
     return !/\s/.test(value);
   }
