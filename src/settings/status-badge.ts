@@ -1,4 +1,4 @@
-export type StatusBadgeTone = "idle" | "fresh" | "stale" | "error";
+type StatusBadgeTone = "idle" | "fresh" | "stale" | "error";
 
 export function setStatusBadge(
   element: HTMLElement,

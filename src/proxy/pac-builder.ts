@@ -1,17 +1,15 @@
-import type {
-  ParsedRule,
-  RuleAction,
-} from "../rules/types";
+import type { ParsedRule } from "../rules/types";
 import { ipv4MatchesCidr, parseIPv4Cidr } from "../rules/ip-cidr.ts";
 
-export interface PacProxyConfig {
+interface PacProxyConfig {
   host: string;
   port: number;
 }
 
-export interface PacBuildResult {
-  script: string;
-  warnings: string[];
+export interface PacTargetedRule {
+  type: ParsedRule["type"];
+  value: string;
+  target: string;
 }
 
 export function ruleMatchesHostname(rule: ParsedRule, hostname: string): boolean {
@@ -22,116 +20,73 @@ export function ruleMatchesHostname(rule: ParsedRule, hostname: string): boolean
       return host === rule.value;
     case "DOMAIN-SUFFIX":
       return host === rule.value || host.endsWith(`.${rule.value}`);
-    case "DOMAIN-KEYWORD":
-      return host.includes(rule.value);
     case "IP-CIDR":
       return ipv4MatchesCidr(host, rule.value);
   }
 }
 
-function getPacResult(
-  action: RuleAction,
-  proxy: PacProxyConfig,
-): string | null {
-  switch (action) {
-    case "PROXY":
-      return `PROXY ${proxy.host}:${proxy.port}`;
+function appendRuleCondition(
+  lines: string[],
+  rule: Pick<ParsedRule, "type" | "value">,
+  result: string,
+): void {
+  const serializedResult = JSON.stringify(result);
 
-    case "DIRECT":
-      return "DIRECT";
+  switch (rule.type) {
+    case "DOMAIN": {
+      const domain = JSON.stringify(rule.value);
+      lines.push(`  if (host === ${domain}) return ${serializedResult};`);
+      break;
+    }
 
-    case "REJECT":
-      // PAC 没有标准 REJECT 返回值。
-      return null;
+    case "DOMAIN-SUFFIX": {
+      const domain = JSON.stringify(rule.value);
+      const suffix = JSON.stringify(`.${rule.value}`);
+      lines.push(`  if (host === ${domain} || dnsDomainIs(host, ${suffix})) return ${serializedResult};`);
+      break;
+    }
+
+    case "IP-CIDR": {
+      const cidr = parseIPv4Cidr(rule.value);
+      if (!cidr) break;
+      lines.push(
+        `  if (/^\\d+\\.\\d+\\.\\d+\\.\\d+$/.test(host) && isInNet(host, ${JSON.stringify(cidr.address)}, ${JSON.stringify(cidr.mask)})) return ${serializedResult};`,
+      );
+      break;
+    }
   }
 }
 
-export function buildPacScript(
-  rules: ParsedRule[],
-  proxy: PacProxyConfig,
-  fallbackAction: "DIRECT" | "PROXY",
+export function buildTargetedPacScript(
+  rules: readonly PacTargetedRule[],
+  proxies: ReadonlyMap<string, PacProxyConfig>,
+  fallbackTarget: string,
   forcedProxyHosts: readonly string[] = [],
-): PacBuildResult {
-  const warnings: string[] = [];
-
-  const lines: string[] = [
+): string {
+  const resultForTarget = (target: string): string => {
+    if (target === "DIRECT") return "DIRECT";
+    const proxy = proxies.get(target);
+    if (!proxy) throw new Error(`PAC 引用了不存在的代理节点：${target}`);
+    return `PROXY ${proxy.host}:${proxy.port}`;
+  };
+  const fallbackResult = resultForTarget(fallbackTarget);
+  const lines = [
     "function FindProxyForURL(url, host) {",
     "  host = host.toLowerCase();",
   ];
 
-  const forcedProxyResult = JSON.stringify(`PROXY ${proxy.host}:${proxy.port}`);
   for (const value of forcedProxyHosts) {
     const normalized = value.trim().toLowerCase();
     if (!normalized) continue;
     const domain = JSON.stringify(normalized);
     const suffix = JSON.stringify(`.${normalized}`);
-    lines.push(`  if (host === ${domain} || dnsDomainIs(host, ${suffix})) return ${forcedProxyResult};`);
+    lines.push(`  if (host === ${domain} || dnsDomainIs(host, ${suffix})) return ${JSON.stringify(fallbackResult)};`);
   }
 
   for (const rule of rules) {
-    const result = getPacResult(rule.action, proxy);
-
-    if (!result) {
-      warnings.push(
-        `第 ${rule.lineNumber} 行的 REJECT 暂不支持，已跳过`,
-      );
-
-      continue;
-    }
-
-    const serializedResult = JSON.stringify(result);
-
-    switch (rule.type) {
-      case "DOMAIN": {
-        const domain = JSON.stringify(rule.value);
-
-        lines.push(
-          `  if (host === ${domain}) return ${serializedResult};`,
-        );
-
-        break;
-      }
-
-      case "DOMAIN-SUFFIX": {
-        const domain = JSON.stringify(rule.value);
-        const suffix = JSON.stringify(`.${rule.value}`);
-
-        lines.push(
-          `  if (host === ${domain} || dnsDomainIs(host, ${suffix})) return ${serializedResult};`,
-        );
-
-        break;
-      }
-
-      case "DOMAIN-KEYWORD": {
-        const keyword = JSON.stringify(rule.value);
-
-        lines.push(
-          `  if (host.indexOf(${keyword}) !== -1) return ${serializedResult};`,
-        );
-
-        break;
-      }
-
-      case "IP-CIDR": {
-        const cidr = parseIPv4Cidr(rule.value);
-        if (!cidr) break;
-        lines.push(
-          `  if (/^\\d+\\.\\d+\\.\\d+\\.\\d+$/.test(host) && isInNet(host, ${JSON.stringify(cidr.address)}, ${JSON.stringify(cidr.mask)})) return ${serializedResult};`,
-        );
-        break;
-      }
-
-    }
+    appendRuleCondition(lines, rule, resultForTarget(rule.target));
   }
-
-  const fallbackResult = getPacResult(fallbackAction, proxy);
   lines.push(`  return ${JSON.stringify(fallbackResult)};`);
-
   lines.push("}");
-
-  return {
-    script: lines.join("\n"),
-    warnings,
-  };
+  return lines.join("\n");
 }

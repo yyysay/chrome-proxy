@@ -3,7 +3,7 @@ import { loadDiagnostics } from "./diagnostics.ts";
 import { requiredElement } from "./dom.ts";
 import { showToast } from "./toast.ts";
 
-export type SettingsTab = "proxy" | "rules";
+export type SettingsTab = "config" | "tools";
 
 const aboutButton = requiredElement<HTMLButtonElement>("#about-button");
 const aboutPanel = requiredElement<HTMLElement>('[data-view-panel="about"]');
@@ -28,6 +28,7 @@ export function activateTab(tab: SettingsTab): void {
     button.setAttribute("aria-selected", String(active));
   }
   for (const panel of tabPanels) panel.hidden = panel.dataset.tabPanel !== tab;
+  document.dispatchEvent(new CustomEvent("settings-tab-activated", { detail: { tab } }));
 }
 
 function openAbout(): void {
@@ -52,7 +53,7 @@ export function initializeNavigation(tab: SettingsTab, installedAt?: string): vo
 for (const button of tabButtons) {
   button.addEventListener("click", () => {
     const target = button.dataset.tabTarget;
-    if (target !== "proxy" && target !== "rules") return;
+    if (target !== "config" && target !== "tools") return;
     activateTab(target);
     void chrome.storage.local.set({ [ACTIVE_SETTINGS_TAB_KEY]: target });
   });

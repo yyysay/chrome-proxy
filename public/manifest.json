@@ -11,7 +11,6 @@
   ],
   "host_permissions": [
     "https://raw.githubusercontent.com/*",
-    "https://myip.ipip.net/*",
     "https://api.ip.sb/*"
   ],
   "optional_host_permissions": [

@@ -1,31 +1,10 @@
 export const INSTALL_TIME_KEY = "installedAt";
 export const ACTIVE_SETTINGS_TAB_KEY = "activeSettingsTab";
-export const AUTO_REFRESH_ENABLED_KEY = "autoRuleRefreshEnabled";
-export const AUTO_REFRESH_INTERVAL_KEY = "autoRuleRefreshIntervalMinutes";
-export const LEGACY_AUTO_REFRESH_INTERVAL_KEY = "autoRuleRefreshIntervalHours";
-export const PROXY_SUBSCRIPTION_REFRESH_INTERVAL_KEY = "proxySubscriptionRefreshIntervalMinutes";
-export const LEGACY_PROXY_SUBSCRIPTION_REFRESH_INTERVAL_KEY = "proxySubscriptionRefreshIntervalHours";
 export const NETWORK_INFO_CACHE_KEY = "networkInfoCache";
-export const FALLBACK_MODE_KEY = "fallbackMode";
 export const LAST_PROXY_ERROR_KEY = "lastProxyError";
 export const DIAGNOSTIC_EVENTS_KEY = "diagnosticEvents";
-
-export const PROXY_SOURCE_MODE_KEY = "proxySourceMode";
-export const PROXY_SUBSCRIPTION_URL_KEY = "proxySubscriptionUrl";
-export const PROXY_SUBSCRIPTION_CACHE_KEY = "proxySubscriptionCache";
-export const PROXY_SUBSCRIPTION_ERROR_KEY = "proxySubscriptionError";
-export const PROXY_MANUAL_OVERRIDE_KEY = "proxyManualOverride";
-export const LEGACY_PROXY_CONFIG_KEY = "proxyConfig";
-export const LEGACY_PROXY_ACTIVE_ID_KEY = "activeProxyId";
-
 export const PROXY_STATE_KEY = "proxyState";
-export const PROXY_EVENT_KEY = "lastProxyEvent";
-export const ENABLED_RULE_PACK_IDS_KEY = "enabledRulePackIds";
-export const DISABLED_DEFAULT_RULE_PACK_IDS_KEY = "disabledDefaultRulePackIds";
-export const RULE_PACK_SOURCES_KEY = "rulePackSources";
-export const RULE_PACK_DEFINITIONS_KEY = "rulePackDefinitions";
-export const MANAGED_RULE_OVERRIDES_KEY = "managedRuleOverrides";
-export const RULE_ENGINE_STATUS_KEY = "ruleEngineStatus";
-export const LEGACY_RULE_SOURCE_STRATEGIES_KEY = "ruleSourceStrategies";
-export const SIMPLE_ENABLED_RULE_PACK_IDS_KEY = "simpleEnabledRulePackIds";
-export const UI_MODE_KEY = "uiMode";
+export const CONFIG_DOCUMENT_ACTIVE_KEY = "configDocumentActive";
+export const CONFIG_DOCUMENT_YAML_KEY = "configDocumentYaml";
+export const CONFIG_DOCUMENT_URL_KEY = "configDocumentUrl";
+export const CONFIG_PROVIDER_CACHE_KEY = "configProviderCache";

@@ -1,4 +1,4 @@
-import { getProxyStatus } from "../proxy/proxy-manager.ts";
+import { getProxyStatus } from "../proxy/pac-controller.ts";
 
 function iconPaths(active: boolean): Record<number, string> {
   const prefix = active ? "icon-active" : "icon";

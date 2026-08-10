@@ -1,93 +1,63 @@
-# Rule Proxy Lab · 最小环境测试
+# Auto Proxy
 
-这是一个基于 Chrome Manifest V3 和 PAC 的规则分流扩展。
+一个基于 Chrome Manifest V3、`chrome.proxy` 与 PAC 的极简规则分流扩展。整套运行配置使用 Mihomo 风格 YAML：节点、远程规则包与本地规则都在同一份文件中维护。
 
-- TypeScript 编译
-- Vite 多入口构建
-- Manifest V3 Service Worker
-- 扩展安装后自动打开 onboarding 页面
-- Popup 与 Service Worker 消息通信
-- `chrome.storage.local` 读写
+## 配置模型
 
-当前版本支持自定义规则订阅、规则优先级、三种兜底策略和局域网 HTTP 代理连通性检查。
+```yaml
+proxies:
+  - name: local
+    type: http
+    server: 127.0.0.1
+    port: 7890
 
-## 1. 环境要求
+rule-providers:
+  google:
+    type: http
+    behavior: domain
+    format: yaml
+    url: https://example.com/google.yaml
+    interval: 86400
 
-推荐使用 Node.js 24 LTS。
-
-在 PowerShell 中检查：
-
-```powershell
-node -v
-npm -v
+rules:
+  - RULE-SET,google,local
+  - DOMAIN-SUFFIX,example.com,DIRECT
+  - IP-CIDR,10.0.0.0/8,DIRECT
+  - MATCH,local
 ```
 
-安装或启用 pnpm：
+- `proxies`：一个或多个 HTTP 节点。
+- `rule-providers`：远程规则包；`format` 仅支持 `yaml` / `list`，`behavior` 支持 `domain` / `ipcidr` / `classical`。
+- `rules`：按顺序仅支持 `RULE-SET`、`DOMAIN`、`DOMAIN-SUFFIX`、`IP-CIDR`；必须且只能有一条最终 `MATCH` 作为兜底。
+- 规则目标只能是 `DIRECT` 或一个节点名称。
+- 不支持 `REJECT`、策略组、节点选择、`url-test`、负载均衡和 MRS。
 
-```powershell
-corepack enable
-corepack prepare pnpm@latest --activate
-pnpm -v
-```
+远程规则下载失败时，相同名称与 URL 会继续使用上次有效缓存。PAC 按配置顺序生成，首条命中生效。配置页优先使用远程 YAML 订阅地址同步整份配置，也保留手动 YAML 与可视化编辑。
 
-如果 `corepack enable` 因权限失败，可以改用：
+## 界面
 
-```powershell
-npm install -g pnpm
-```
+- `配置`：优先同步远程 YAML；下方可手动编辑 YAML，并与节点、远程规则包和本地规则可视化编辑器双向同步。
+- `工具`：规则命中测试，并选择一个配置节点查询其出口 IP、位置和运营商。
+- Popup：仅开启或关闭当前配置生成的 PAC。
+- Onboarding：首次粘贴 YAML 后直接应用并开启。
 
-## 2. 安装依赖并开始开发
+## 开发
 
-```powershell
-cd chrome-proxy
+推荐 Node.js 24 LTS 与 pnpm：
+
+```bash
 pnpm install
 pnpm typecheck
 pnpm test
+pnpm build
+```
+
+开发监听使用：
+
+```bash
 pnpm dev
 ```
 
-Vite 会持续更新 `dist` 目录。
+该命令会监听源码并持续构建 `dist`。在 `chrome://extensions/` 开启开发者模式，选择“加载已解压的扩展程序”并加载 `dist`；代码变化完成构建后，在扩展卡片上重新加载。
 
-## 3. 加载到 Chrome
-
-1. 打开 `chrome://extensions/`
-2. 开启右上角“开发者模式”
-3. 点击“加载已解压的扩展程序”
-4. 选择项目中的 `dist` 目录
-5. 首次安装后应自动打开 onboarding 页面
-6. 点击浏览器工具栏中的扩展图标
-7. 修改代码后，在扩展卡片上点击“重新加载”
-
-## 4. 开发监听
-
-```powershell
-pnpm dev
-```
-
-Vite 会在文件变化后重新构建 `dist`。修改代码后，仍需回到 `chrome://extensions/` 点击扩展卡片上的“重新加载”。
-
-## 当前规则支持
-
-- `DOMAIN`
-- `DOMAIN-SUFFIX`
-- `DOMAIN-KEYWORD`
-
-规则保持原始顺序写入 PAC，首条命中后立即返回。兜底行为不属于规则文本，统一由设置页的 `MATCH` 决定：本地直连、局域网代理或系统代理。
-
-规则按“自定义规则 → 默认规则 → 内置规则”的顺序匹配。默认规则来自产品预设的远程订阅，内置规则随扩展代码发布且只读。重复规则会合并；动作冲突时保留较早出现的规则。启用的远程规则按设置的周期自动更新，下载失败时继续使用已有缓存，内置规则始终保留基础分流能力。
-
-内容策略没有跨来源回退：
-
-- `subscription-first`（默认）：只使用远程下载内容；远程为空时规则为空。
-- `local-first`：只使用本地规则；本地为空时规则为空。
-- `merge`：合并远程与本地规则并去重，任一来源都可以为空。
-
-## 修改默认规则
-
-默认规则目录统一维护在 `src/rule-packs/catalog.ts` 的 `DEFAULT_RULE_PACKS` 中。增加、删除或调整默认规则时，只需要修改这里的定义；设置页会根据目录自动生成，不需要手动修改 HTML。
-
-- `id`：稳定且唯一的规则标识，发布后不要随意更改。
-- `name`：设置页显示名称。
-- `defaultUrl`：远程规则订阅地址。
-- `defaultAction`：连接策略，支持 `PROXY` 或 `DIRECT`。
-`BUILTIN_RULE_PACKS` 是随扩展发布的隐藏兜底规则，不属于设置页中的默认规则。只有调整规则模型或存储行为时，才需要修改 `repository.ts` 和 `service.ts`。
+示例配置见 [`examples/config.yaml`](examples/config.yaml)。

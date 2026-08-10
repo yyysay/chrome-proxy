@@ -1,8 +1,5 @@
 import type {
   ParsedRule,
-  ParseIssue,
-  ParseResult,
-  RuleAction,
   RuleType,
 } from "./types";
 import { normalizeIPv4Cidr } from "./ip-cidr.ts";
@@ -10,9 +7,18 @@ import { normalizeIPv4Cidr } from "./ip-cidr.ts";
 const SUPPORTED_TYPES = new Set([
   "DOMAIN",
   "DOMAIN-SUFFIX",
-  "DOMAIN-KEYWORD",
   "IP-CIDR",
 ]);
+
+interface ParseIssue {
+  lineNumber: number;
+  message: string;
+}
+
+interface ParseResult {
+  rules: ParsedRule[];
+  issues: ParseIssue[];
+}
 
 function normalizeLine(rawLine: string): string {
   let line = rawLine.replace(/^\uFEFF/, "").trim();
@@ -85,10 +91,6 @@ function normalizeRuleValue(
 
 function isValidRuleValue(type: string, value: string): boolean {
   if (type === "IP-CIDR") return Boolean(normalizeIPv4Cidr(value));
-  if (type === "DOMAIN-KEYWORD") {
-    return !/\s/.test(value);
-  }
-
   return (
     value.length <= 253 &&
     !/\s|\/|:/.test(value) &&
@@ -102,32 +104,12 @@ function isValidRuleValue(type: string, value: string): boolean {
   );
 }
 
-function normalizeAction(policy?: string): RuleAction {
-  const value = policy?.trim().toUpperCase();
-
-  if (value === "DIRECT") {
-    return "DIRECT";
-  }
-
-  if (
-    value === "REJECT" ||
-    value === "REJECT-DROP"
-  ) {
-    return "REJECT";
-  }
-
-  // PROXY、节点名称、策略组名称均先映射到本地代理。
-  return "PROXY";
-}
-
 function createIssue(
   lineNumber: number,
-  source: string,
   message: string,
 ): ParseIssue {
   return {
     lineNumber,
-    source,
     message,
   };
 }
@@ -156,7 +138,6 @@ export function parseRules(text: string): ParseResult {
       issues.push(
         createIssue(
           lineNumber,
-          rawLine,
           `暂不支持的规则类型：${rawType || "空"}`,
         ),
       );
@@ -170,7 +151,6 @@ export function parseRules(text: string): ParseResult {
       issues.push(
         createIssue(
           lineNumber,
-          rawLine,
           "规则缺少匹配内容",
         ),
       );
@@ -182,7 +162,6 @@ export function parseRules(text: string): ParseResult {
       issues.push(
         createIssue(
           lineNumber,
-          rawLine,
           `无效的匹配内容：${value}`,
         ),
       );
@@ -193,9 +172,6 @@ export function parseRules(text: string): ParseResult {
     rules.push({
       type: rawType as RuleType,
       value,
-      action: normalizeAction(parts[2]),
-      lineNumber,
-      source: rawLine,
     });
   });
 

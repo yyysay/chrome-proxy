@@ -1,289 +1,82 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { activateConfigDocument } from "../src/config/config-runtime.ts";
+import { testConfigRuleMatch } from "../src/config/config-service.ts";
+import { beginNetworkInfoCheck, finishNetworkInfoCheck } from "../src/proxy/network-probe.ts";
+import { disableProxy, enableProxy, getProxyStatus, reconcileProxy } from "../src/proxy/pac-controller.ts";
+import { PROXY_STATE_KEY } from "../src/shared/storage-keys.ts";
 
-import { MANAGED_RULE_PACK_IDS } from "../src/rule-packs/catalog.ts";
-import {
-  beginNetworkInfoCheck,
-  bootstrapDefaultRulePacks,
-  disableProxy,
-  enableProxy,
-  finishNetworkInfoCheck,
-  getRulePackSettings,
-  getProxyStatus,
-  migrateStoredData,
-  refreshEnabledRulePacks,
-  reconcileProxy,
-  saveRulePack,
-  updateEnabledRulePacks,
-  updateFallbackMode,
-} from "../src/proxy/proxy-manager.ts";
-import {
-  DISABLED_DEFAULT_RULE_PACK_IDS_KEY,
-  FALLBACK_MODE_KEY,
-  PROXY_MANUAL_OVERRIDE_KEY,
-  PROXY_SOURCE_MODE_KEY,
-  PROXY_STATE_KEY,
-  MANAGED_RULE_OVERRIDES_KEY,
-  RULE_PACK_DEFINITIONS_KEY,
-  RULE_PACK_SOURCES_KEY,
-} from "../src/shared/storage-keys.ts";
-
-interface MockChromeOptions {
-  initial?: Record<string, unknown>;
-  proxyMode?: string;
-  levelOfControl?: string;
-}
-
-function installChrome(options: MockChromeOptions = {}) {
-  const data = new Map(Object.entries(options.initial ?? {}));
-  let proxyValue: Record<string, unknown> = { mode: options.proxyMode ?? "system" };
-  let levelOfControl = options.levelOfControl ?? "controllable_by_this_extension";
+function installChrome(initial: Record<string, unknown> = {}) {
+  const data = new Map(Object.entries(initial));
+  let proxyValue: Record<string, unknown> = { mode: "system" };
+  let levelOfControl = "controllable_by_this_extension";
   let setCount = 0;
-  let clearCount = 0;
-
-  const storage = {
-    async get(keys: string | string[] | null) {
-      if (keys === null) return Object.fromEntries(data);
-      const list = Array.isArray(keys) ? keys : [keys];
-      return Object.fromEntries(list.filter((key) => data.has(key)).map((key) => [key, data.get(key)]));
-    },
-    async set(values: Record<string, unknown>) {
-      for (const [key, value] of Object.entries(values)) data.set(key, value);
-    },
-    async remove(keys: string | string[]) {
-      for (const key of Array.isArray(keys) ? keys : [keys]) data.delete(key);
-    },
+  const local = {
+    async get(keys: string | string[]) { const list = Array.isArray(keys) ? keys : [keys]; return Object.fromEntries(list.filter((key) => data.has(key)).map((key) => [key, data.get(key)])); },
+    async set(values: Record<string, unknown>) { for (const [key, value] of Object.entries(values)) data.set(key, value); },
+    async remove(keys: string | string[]) { for (const key of Array.isArray(keys) ? keys : [keys]) data.delete(key); },
   };
-
   (globalThis as any).chrome = {
-    storage: { local: storage },
-    proxy: {
-      settings: {
-        async get() {
-          return { value: proxyValue, levelOfControl };
-        },
-        async set({ value }: { value: Record<string, unknown> }) {
-          proxyValue = value;
-          levelOfControl = "controlled_by_this_extension";
-          setCount += 1;
-        },
-        async clear() {
-          proxyValue = { mode: "system" };
-          levelOfControl = "controllable_by_this_extension";
-          clearCount += 1;
-        },
-      },
-    },
+    storage: { local }, alarms: { async clear() {}, async create() {} },
+    proxy: { settings: {
+      async get() { return { value: proxyValue, levelOfControl }; },
+      async set({ value }: { value: Record<string, unknown> }) { proxyValue = value; levelOfControl = "controlled_by_this_extension"; setCount += 1; },
+      async clear() { proxyValue = { mode: "system" }; levelOfControl = "controllable_by_this_extension"; },
+    } },
   };
-
-  return {
-    data,
-    get proxyValue() { return proxyValue; },
-    get levelOfControl() { return levelOfControl; },
-    get setCount() { return setCount; },
-    get clearCount() { return clearCount; },
-  };
+  return { data, get proxyValue() { return proxyValue; }, get setCount() { return setCount; } };
 }
 
-function manualProxyState(extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    [PROXY_SOURCE_MODE_KEY]: "manual",
-    [PROXY_MANUAL_OVERRIDE_KEY]: {
-      id: "manual",
-      name: "Manual Proxy",
-      type: "http",
-      host: "10.0.1.2",
-      port: 6152,
-    },
-    [FALLBACK_MODE_KEY]: "direct",
-    ...extra,
-  };
-}
+const YAML = `
+proxies:
+  - name: 香港
+    type: http
+    server: 10.0.0.10
+    port: 7890
+  - name: 日本
+    type: http
+    server: 10.0.0.11
+    port: 7891
+rules:
+  - DOMAIN,hk.example,香港
+  - DOMAIN,jp.example,日本
+  - MATCH,香港
+`;
 
-test("enabling and disabling proxy persists the desired state", async () => {
-  const mock = installChrome({ initial: manualProxyState() });
+test("configuration is required before enabling", async () => {
+  installChrome();
+  await assert.rejects(enableProxy(), /保存并应用 YAML 配置/);
+});
 
-  const config = await enableProxy();
-  assert.deepEqual(config, { type: "http", host: "10.0.1.2", port: 6152 });
-  assert.equal(mock.proxyValue.mode, "pac_script");
-  assert.match(String((mock.proxyValue.pacScript as { data?: string }).data), /PROXY 10\.0\.1\.2:6152/);
-  assert.equal((mock.data.get(PROXY_STATE_KEY) as { desiredEnabled?: boolean }).desiredEnabled, true);
-  assert.equal((await getProxyStatus()).applied, true);
-
+test("active YAML drives enable, status, multi-node PAC, match test and disable", async () => {
+  const mock = installChrome();
+  await activateConfigDocument(YAML);
+  assert.deepEqual(await enableProxy(), { type: "http", host: "10.0.0.10", port: 7890 });
+  const pac = String((mock.proxyValue.pacScript as { data?: string }).data);
+  assert.match(pac, /hk\.example[^\n]+PROXY 10\.0\.0\.10:7890/);
+  assert.match(pac, /jp\.example[^\n]+PROXY 10\.0\.0\.11:7891/);
+  assert.equal((await getProxyStatus()).configured, true);
+  assert.deepEqual(await testConfigRuleMatch("jp.example"), { hostname: "jp.example", action: "日本", matched: true, rule: { type: "DOMAIN", value: "jp.example" } });
   await disableProxy();
+  assert.equal((mock.data.get(PROXY_STATE_KEY) as { desiredEnabled: boolean }).desiredEnabled, false);
   assert.equal(mock.proxyValue.mode, "system");
-  assert.equal((mock.data.get(PROXY_STATE_KEY) as { desiredEnabled?: boolean }).desiredEnabled, false);
-  assert.equal((await getProxyStatus()).applied, false);
 });
 
-test("reconcile restores a lost PAC but skips an already controlled PAC", async () => {
-  const mock = installChrome({
-    initial: manualProxyState({
-      [PROXY_STATE_KEY]: { desiredEnabled: true, updatedAt: new Date().toISOString() },
-    }),
-  });
-
-  assert.equal(await reconcileProxy("test.lost"), true);
-  assert.equal(mock.proxyValue.mode, "pac_script");
-  assert.equal(mock.setCount, 1);
-
-  assert.equal(await reconcileProxy("test.unchanged"), false);
+test("reconcile restores only when a configured proxy is desired", async () => {
+  const mock = installChrome();
+  await activateConfigDocument(YAML);
+  await chrome.storage.local.set({ [PROXY_STATE_KEY]: { desiredEnabled: true, updatedAt: new Date().toISOString() } });
+  assert.equal(await reconcileProxy(), true);
+  assert.equal(await reconcileProxy(), false);
   assert.equal(mock.setCount, 1);
 });
 
-test("system fallback releases Chrome proxy control while remaining enabled", async () => {
-  const mock = installChrome({
-    initial: manualProxyState({
-      [FALLBACK_MODE_KEY]: "system",
-      [PROXY_STATE_KEY]: { desiredEnabled: true, updatedAt: new Date().toISOString() },
-    }),
-    proxyMode: "pac_script",
-    levelOfControl: "controlled_by_this_extension",
-  });
-
-  assert.equal(await reconcileProxy("test.system"), true);
-  assert.equal(mock.clearCount, 1);
-  assert.equal(mock.proxyValue.mode, "system");
-  assert.equal((await getProxyStatus()).applied, true);
-});
-
-test("failed fallback changes restore the previous mode", async () => {
-  const mock = installChrome({
-    initial: manualProxyState({
-      [PROXY_STATE_KEY]: { desiredEnabled: true, updatedAt: new Date().toISOString() },
-    }),
-    levelOfControl: "controlled_by_other_extensions",
-  });
-
-  await assert.rejects(updateFallbackMode("proxy"), /不可由本扩展控制/);
-  assert.equal(mock.data.get(FALLBACK_MODE_KEY), "direct");
-});
-
-test("failed rule application rolls back custom rule storage", async () => {
-  const mock = installChrome({
-    initial: manualProxyState({
-      [PROXY_STATE_KEY]: { desiredEnabled: true, updatedAt: new Date().toISOString() },
-    }),
-    levelOfControl: "controlled_by_other_extensions",
-  });
-
-  await assert.rejects(
-    saveRulePack(
-      undefined,
-      "Rollback Test",
-      "",
-      "PROXY",
-      "DOMAIN-SUFFIX,example.com,PROXY",
-      "local-first",
-    ),
-    /不可由本扩展控制/,
-  );
-  assert.deepEqual(mock.data.get(RULE_PACK_DEFINITIONS_KEY), []);
-  assert.deepEqual(mock.data.get(RULE_PACK_SOURCES_KEY), {});
-});
-
-test("network probe always returns to the user's disabled state", async () => {
-  const mock = installChrome({ initial: manualProxyState() });
-
-  await beginNetworkInfoCheck();
-  assert.equal(mock.proxyValue.mode, "pac_script");
-  assert.match(String((mock.proxyValue.pacScript as { data?: string }).data), /myip\.ipip\.net/);
-
+test("network probe can target a configured node and restores disabled system state", async () => {
+  const mock = installChrome();
+  await activateConfigDocument(YAML);
+  assert.deepEqual(await beginNetworkInfoCheck("日本"), { type: "http", host: "10.0.0.11", port: 7891 });
+  assert.match(String((mock.proxyValue.pacScript as { data?: string }).data), /PROXY 10\.0\.0\.11:7891/);
+  assert.doesNotMatch(String((mock.proxyValue.pacScript as { data?: string }).data), /DIRECT/);
   await finishNetworkInfoCheck();
   assert.equal(mock.proxyValue.mode, "system");
-  assert.equal(mock.clearCount, 1);
-});
-
-test("default rules can be disabled and stale managed definitions stay hidden", async () => {
-  const mock = installChrome({
-    initial: manualProxyState({
-      [RULE_PACK_DEFINITIONS_KEY]: [{
-        id: "managed-github",
-        name: "GitHub",
-        description: "removed default",
-        enabledByDefault: true,
-        defaultUrl: "https://example.com/github.yaml",
-        defaultAction: "PROXY",
-        kind: "managed",
-      }],
-    }),
-  });
-
-  const before = await getRulePackSettings();
-  assert.equal(before.some((pack) => pack.name === "GitHub"), false);
-  assert.equal(before.find((pack) => pack.category === "default")?.enabled, true);
-
-  await updateEnabledRulePacks([]);
-  const after = await getRulePackSettings();
-  assert.equal(after.find((pack) => pack.category === "default")?.enabled, false);
-  assert.deepEqual(mock.data.get(DISABLED_DEFAULT_RULE_PACK_IDS_KEY), [...MANAGED_RULE_PACK_IDS]);
-  assert.deepEqual(await refreshEnabledRulePacks(), {
-    refreshed: 0,
-    cached: 0,
-    failed: 0,
-    skipped: 0,
-  });
-});
-
-test("default rules bootstrap once with direct, system, and current proxy fallback", async () => {
-  const mock = installChrome({
-    initial: manualProxyState({
-      [DISABLED_DEFAULT_RULE_PACK_IDS_KEY]: MANAGED_RULE_PACK_IDS.slice(1),
-    }),
-  });
-  const originalFetch = globalThis.fetch;
-  const attemptedModes: string[] = [];
-  globalThis.fetch = (async () => {
-    attemptedModes.push(String(mock.proxyValue.mode));
-    if (attemptedModes.length < 3) throw new Error("route unavailable");
-    return new Response("payload:\n  - +.pinterest.com", { status: 200 });
-  }) as typeof fetch;
-
-  try {
-    assert.deepEqual(await bootstrapDefaultRulePacks(), {
-      refreshed: 1,
-      failed: 0,
-      skipped: 0,
-    });
-    assert.deepEqual(attemptedModes, ["direct", "system", "pac_script"]);
-    assert.equal(mock.proxyValue.mode, "system");
-    const sources = mock.data.get(RULE_PACK_SOURCES_KEY) as Record<string, { cachedContent?: string }>;
-    assert.match(sources["managed-pinterest"].cachedContent ?? "", /pinterest\.com/);
-
-    assert.deepEqual(await bootstrapDefaultRulePacks(), {
-      refreshed: 0,
-      failed: 0,
-      skipped: 1,
-    });
-    assert.equal(attemptedModes.length, 3);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("migration removes retired private subscriptions and their stored state", async () => {
-  const mock = installChrome({
-    initial: {
-      schemaVersion: 5,
-      [RULE_PACK_SOURCES_KEY]: {
-        "managed-proxy": { url: "https://private.example/rules.yaml", cachedContent: "secret.internal" },
-        "managed-pinterest": { cachedContent: "pinterest.com" },
-      },
-      [DISABLED_DEFAULT_RULE_PACK_IDS_KEY]: ["managed-proxy", "managed-pinterest"],
-      [MANAGED_RULE_OVERRIDES_KEY]: {
-        "managed-proxy": { name: "Private" },
-        "managed-pinterest": { name: "Pinterest Custom" },
-      },
-    },
-  });
-
-  await migrateStoredData();
-  assert.equal(mock.data.get("schemaVersion"), 7);
-  assert.deepEqual(mock.data.get(RULE_PACK_SOURCES_KEY), {
-    "managed-pinterest": { cachedContent: "pinterest.com", sourceStrategy: "subscription-first" },
-  });
-  assert.deepEqual(mock.data.get(DISABLED_DEFAULT_RULE_PACK_IDS_KEY), ["managed-pinterest"]);
-  assert.deepEqual(mock.data.get(MANAGED_RULE_OVERRIDES_KEY), {
-    "managed-pinterest": { name: "Pinterest Custom" },
-  });
 });

@@ -1,6 +1,6 @@
 import { requiredElement } from "./dom.ts";
 
-export type ToastTone = "success" | "error" | "warning" | "info";
+type ToastTone = "success" | "error" | "warning" | "info";
 
 const toastHost = requiredElement<HTMLElement>("#toast-host");
 

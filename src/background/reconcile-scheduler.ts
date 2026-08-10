@@ -1,4 +1,4 @@
-import { reconcileProxy } from "../proxy/proxy-manager.ts";
+import { reconcileProxy } from "../proxy/pac-controller.ts";
 import { syncActionState } from "./action-state.ts";
 import { recordDiagnosticEvent } from "./diagnostics.ts";
 
@@ -11,7 +11,7 @@ export function scheduleReconcile(reason: string, forceApply = false): void {
     return;
   }
 
-  reconcileTask = reconcileProxy(reason, forceApply);
+  reconcileTask = reconcileProxy(forceApply);
 
   void reconcileTask
     .catch((error: unknown) => {

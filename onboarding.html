@@ -1,103 +1,15 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>欢迎使用 Auto Proxy</title>
-  </head>
-  <body class="onboarding-page min-h-screen min-w-[560px] bg-stone-100 font-sans text-sm leading-5 text-stone-900 antialiased dark:bg-black dark:text-[#f5f5f7] dark:[color-scheme:dark]">
-    <main class="flex min-h-screen items-center justify-center px-4 py-4">
-      <section class="w-full max-w-[720px] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_20px_60px_rgba(28,25,23,.08)] dark:border-white/15 dark:bg-[#1c1c1e] dark:shadow-[0_22px_70px_rgba(0,0,0,.5)]">
-        <header class="border-b border-stone-100 px-6 py-5 dark:border-white/10 sm:px-7">
-          <div class="flex items-start justify-between gap-6">
-            <div class="flex items-center gap-3">
-              <span class="grid size-10 place-items-center rounded-xl bg-stone-900 text-base font-black text-white shadow-md shadow-stone-900/10 dark:bg-[#0a84ff] dark:shadow-black/20" aria-hidden="true">A</span>
-              <div>
-                <h1 class="text-2xl font-black tracking-[-.04em] text-stone-900 dark:text-[#f5f5f7]"><span class="text-blue-600 dark:text-[#64d2ff]">仅需三步</span>完成设置</h1>
-              </div>
-            </div>
-            <button id="open-settings" class="shrink-0 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold text-stone-600 transition hover:border-stone-300 hover:text-stone-900 dark:border-white/15 dark:bg-[#2c2c2e] dark:text-white/70 dark:hover:border-white/30 dark:hover:text-white" type="button">高级设置</button>
-          </div>
-        </header>
-
-        <div class="px-6 py-5 sm:px-7">
-          <nav class="grid grid-cols-3 gap-2" aria-label="首次设置步骤">
-            <button type="button" data-step-nav="1" class="step-nav rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-left transition hover:border-stone-300 dark:border-white/10 dark:bg-[#242426]">
-              <span class="flex items-center gap-3">
-                <span class="step-index grid size-8 place-items-center rounded-full bg-stone-900 text-sm font-black text-white dark:bg-[#0a84ff]">1</span>
-                <span><strong class="block text-[15px]">代理订阅</strong><small class="block text-xs text-stone-400 dark:text-white/40">确认配置来源</small></span>
-              </span>
-            </button>
-            <button type="button" data-step-nav="2" class="step-nav rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-left transition hover:border-stone-300 dark:border-white/10 dark:bg-[#242426]">
-              <span class="flex items-center gap-3">
-                <span class="step-index grid size-8 place-items-center rounded-full bg-stone-200 text-sm font-black text-stone-600 dark:bg-white/10 dark:text-white/65">2</span>
-                <span><strong class="block text-[15px]">检测代理</strong><small class="block text-xs text-stone-400 dark:text-white/40">确认连接可用</small></span>
-              </span>
-            </button>
-            <button type="button" data-step-nav="3" class="step-nav rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-left transition hover:border-stone-300 dark:border-white/10 dark:bg-[#242426]">
-              <span class="flex items-center gap-3">
-                <span class="step-index grid size-8 place-items-center rounded-full bg-stone-200 text-sm font-black text-stone-600 dark:bg-white/10 dark:text-white/65">3</span>
-                <span><strong class="block text-[15px]">完成</strong><small class="block text-xs text-stone-400 dark:text-white/40">以后只用开关</small></span>
-              </span>
-            </button>
-          </nav>
-
-          <div class="mt-4 rounded-2xl border border-stone-200 bg-stone-50/70 p-5 dark:border-white/10 dark:bg-[#242426]">
-            <section data-step-panel="1">
-              <h2 class="text-2xl font-black tracking-[-.03em]">输入代理订阅地址</h2>
-              <form id="onboarding-subscription-form" class="mt-5">
-                <label class="block">
-                  <span class="mb-2 block text-sm font-bold text-stone-700 dark:text-white/90">订阅地址</span>
-                  <input id="onboarding-subscription-url" class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3.5 text-[15px] text-stone-900 outline-none transition placeholder:text-stone-300 focus:border-stone-500 focus:ring-4 focus:ring-stone-900/5 dark:border-[#545458]/65 dark:bg-[#161618] dark:text-[#f5f5f7] dark:placeholder:text-white/30 dark:focus:border-[#0a84ff] dark:focus:ring-[#0a84ff]/20" type="url" placeholder="粘贴工作群中的订阅地址" autocomplete="off" required />
-                </label>
-                <div class="mt-4 flex items-center justify-between gap-4">
-                  <p id="subscription-step-hint" class="text-sm text-stone-400 dark:text-white/40">订阅地址于工作群获取</p>
-                  <button id="save-subscription" class="rounded-xl bg-stone-900 px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-stone-900/10 transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#0a84ff] dark:hover:bg-[#409cff]" type="submit">保存并继续</button>
-                </div>
-              </form>
-            </section>
-
-            <section data-step-panel="2" hidden>
-              <h2 class="text-xl font-black tracking-[-.03em]">验证代理连接</h2>
-              <p class="mt-1 text-stone-500 dark:text-white/65">只有检测通过后才能开启。检测失败时请重新填写订阅，或改用本地 IP 和端口。</p>
-              <div id="onboarding-health" class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 dark:border-[#ff9f0a]/40 dark:bg-[#ff9f0a]/15">
-                <div class="flex items-center justify-between gap-4">
-                  <span><strong id="onboarding-health-title" class="block text-sm text-amber-800 dark:text-[#ff9f0a]">正在检测代理…</strong><small id="onboarding-health-summary" class="mt-1 block text-xs text-amber-700 dark:text-[#ffb340]">请稍候，正在比较直连与代理出口。</small></span>
-                  <span id="onboarding-health-dot" class="size-2.5 shrink-0 rounded-full bg-amber-500 dark:bg-[#ff9f0a]" aria-hidden="true"></span>
-                </div>
-                <div class="mt-3 grid grid-cols-2 gap-3 text-xs">
-                  <span class="rounded-xl bg-white/70 px-3 py-2 text-stone-500 dark:bg-[#2c2c2e] dark:text-white/65">直连出口<strong id="onboarding-direct-ip" class="mt-0.5 block break-all text-stone-800 dark:text-[#f5f5f7]">检测中</strong></span>
-                  <span class="rounded-xl bg-white/70 px-3 py-2 text-stone-500 dark:bg-[#2c2c2e] dark:text-white/65">代理出口<strong id="onboarding-proxy-ip" class="mt-0.5 block break-all text-stone-800 dark:text-[#f5f5f7]">检测中</strong></span>
-                </div>
-                <div id="onboarding-health-actions" class="mt-4 flex flex-wrap gap-2" hidden>
-                  <button id="back-to-subscription" class="rounded-xl border border-red-200 bg-white px-4 py-2 text-xs font-extrabold text-red-700 dark:border-[#ff453a]/40 dark:bg-[#2c2c2e] dark:text-[#ff6961]" type="button">返回修改订阅</button>
-                  <button id="show-manual-proxy" class="rounded-xl bg-red-700 px-4 py-2 text-xs font-extrabold text-white dark:bg-[#ff453a]" type="button">填写本地 IP 和端口</button>
-                </div>
-                <form id="onboarding-manual-form" class="mt-4 grid grid-cols-[1fr_110px_auto] gap-2" hidden>
-                  <input id="onboarding-manual-host" class="min-w-0 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm outline-none dark:border-[#ff453a]/40 dark:bg-[#161618] dark:text-[#f5f5f7] dark:placeholder:text-white/30" placeholder="127.0.0.1" required />
-                  <input id="onboarding-manual-port" class="min-w-0 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm outline-none dark:border-[#ff453a]/40 dark:bg-[#161618] dark:text-[#f5f5f7]" type="number" min="1" max="65535" value="7890" required />
-                  <button class="rounded-xl bg-stone-900 px-4 py-2 text-xs font-extrabold text-white dark:bg-[#0a84ff]" type="submit">保存检测</button>
-                </form>
-              </div>
-              <div class="mt-4 flex items-center justify-between gap-4">
-                <p id="enable-step-hint" class="text-sm text-stone-400 dark:text-white/40">准备就绪，可以开启。</p>
-                <button id="enable-proxy" class="rounded-xl bg-stone-900 px-6 py-3 text-sm font-extrabold text-white shadow-lg shadow-stone-900/10 transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#0a84ff] dark:hover:bg-[#409cff]" type="button" disabled>开启 Auto Proxy</button>
-              </div>
-            </section>
-
-            <section data-step-panel="3" hidden>
-              <div class="py-3 text-center">
-                <span class="mx-auto grid size-14 place-items-center rounded-full bg-emerald-100 text-2xl font-black text-emerald-700 dark:bg-[#30d158]/15 dark:text-[#30d158]" aria-hidden="true">✓</span>
-                <h2 class="mt-5 text-2xl font-black tracking-[-.03em]">设置完成</h2>
-                <p class="mx-auto mt-2 max-w-md text-stone-500 dark:text-white/65">后续使用只需要在顶部插件中开启或者关闭。</p>
-                <div class="mx-auto mt-5 flex max-w-md items-center gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-left dark:border-white/10 dark:bg-[#2c2c2e]">
-                  <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-[#0a84ff]/18 dark:text-[#64d2ff]" aria-hidden="true"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 4H5a1 1 0 0 0-1 1v4.5a2.5 2.5 0 1 1 0 5V19a1 1 0 0 0 1 1h4.5a2.5 2.5 0 1 1 5 0H19a1 1 0 0 0 1-1v-4.5a2.5 2.5 0 1 1 0-5V5a1 1 0 0 0-1-1h-4.5a2.5 2.5 0 1 1-5 0Z"/></svg></span>
-                  <span><strong class="block text-sm">建议固定到工具栏</strong><small class="mt-0.5 block text-xs text-stone-500 dark:text-white/55">点击 Chrome 右上角“扩展程序”，再固定 Auto Proxy。</small></span>
-                </div>
-                <button id="close-page" class="mt-6 rounded-xl bg-stone-900 px-6 py-3 text-sm font-extrabold text-white shadow-lg shadow-stone-900/10 transition hover:bg-stone-800 dark:bg-[#0a84ff] dark:hover:bg-[#409cff]" type="button">关闭此页面</button>
-              </div>
-            </section>
-          </div>
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="icon" href="/icons/icon-32.png" /><title>欢迎使用 Auto Proxy</title></head>
+  <body class="onboarding-page min-h-screen bg-stone-100 font-sans text-sm text-stone-900 antialiased dark:bg-black dark:text-[#f5f5f7]">
+    <main class="flex min-h-screen items-center justify-center px-4 py-6">
+      <section class="w-full max-w-[720px] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl dark:border-white/15 dark:bg-[#1c1c1e]">
+        <header class="flex items-center justify-between gap-4 border-b border-stone-100 px-6 py-5 dark:border-white/10"><div class="flex items-center gap-3"><img src="/icons/icon-48.png" alt="Auto Proxy" class="size-10 rounded-xl" /><span><h1 class="text-2xl font-black">导入远程 YAML</h1><p class="mt-1 text-stone-500 dark:text-white/60">一个订阅地址即可完成配置</p></span></div><button id="open-settings" class="rounded-xl border border-stone-200 px-4 py-2.5 font-bold dark:border-white/15" type="button">高级设置</button></header>
+        <div class="p-6">
+          <form id="onboarding-remote-form"><label class="block"><span class="mb-2 block font-bold">远程 YAML 订阅</span><input id="onboarding-config-url" class="w-full rounded-xl border border-stone-300 bg-stone-50 px-4 py-3 outline-none dark:border-white/15 dark:bg-[#161618]" type="url" placeholder="https://example.com/config.yaml" required /></label><button id="apply-remote-and-enable" class="mt-4 w-full rounded-xl bg-stone-900 px-5 py-3 font-extrabold text-white disabled:opacity-50 dark:bg-[#0a84ff]" type="submit">同步、应用并开启</button></form>
+          <details class="mt-5 rounded-xl border border-stone-200 dark:border-white/10"><summary class="cursor-pointer px-4 py-3 font-bold text-stone-500 dark:text-white/60">或手动粘贴 YAML</summary><form id="onboarding-manual-form" class="border-t border-stone-200 p-4 dark:border-white/10"><textarea id="onboarding-config" class="min-h-[300px] w-full rounded-xl border border-stone-300 bg-stone-50 p-4 font-mono text-[13px] leading-5 outline-none dark:border-white/15 dark:bg-[#161618]" spellcheck="false" aria-label="手动 YAML 配置"></textarea><button id="apply-manual-and-enable" class="mt-3 w-full rounded-xl border border-stone-300 px-5 py-3 font-extrabold dark:border-white/15" type="submit">应用手动配置并开启</button></form></details>
+          <p id="onboarding-hint" class="mt-3 text-sm text-stone-500 dark:text-white/60">支持多个 HTTP 节点、yaml/list 远程规则包与本地规则。</p>
+          <div class="mt-5 flex justify-end"><button id="close-page" class="rounded-xl px-4 py-2.5 font-bold text-stone-500 dark:text-white/60" type="button">稍后配置</button></div>
         </div>
       </section>
     </main>

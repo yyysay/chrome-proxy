@@ -1,4 +1,4 @@
-import { getEffectiveProxy } from "./proxy-provider.ts";
+import { getActiveConfigProxyState } from "../config/config-runtime.ts";
 import { reconcileProxy } from "./pac-controller.ts";
 import {
   assertControllable,
@@ -8,8 +8,10 @@ import {
   type ProxyConfig,
 } from "./proxy-state.ts";
 
-export async function beginNetworkInfoCheck(): Promise<ProxyConfig> {
-  const config = toProxyConfig(await getEffectiveProxy());
+export async function beginNetworkInfoCheck(nodeName?: string): Promise<ProxyConfig> {
+  const state = await getActiveConfigProxyState(nodeName);
+  if (!state) throw new Error("请先保存并应用 YAML 配置");
+  const config = toProxyConfig(state.activeProxy);
   const before = await readEffectiveSetting();
   assertControllable(before.levelOfControl);
 
@@ -19,7 +21,6 @@ export async function beginNetworkInfoCheck(): Promise<ProxyConfig> {
       mandatory: true,
       data: [
         "function FindProxyForURL(url, host) {",
-        '  if (host === "myip.ipip.net") return "DIRECT";',
         `  return ${JSON.stringify(`PROXY ${config.host}:${config.port}`)};`,
         "}",
       ].join("\n"),
@@ -31,7 +32,7 @@ export async function beginNetworkInfoCheck(): Promise<ProxyConfig> {
 
 export async function finishNetworkInfoCheck(): Promise<void> {
   if (await getDesiredEnabled()) {
-    await reconcileProxy("networkInfoCheck.finished", true);
+    await reconcileProxy(true);
     return;
   }
   await chrome.proxy.settings.clear({ scope: "regular" });
