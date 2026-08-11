@@ -1,5 +1,5 @@
 import type { ParsedRule } from "../rules/types";
-import { ipv4MatchesCidr, parseIPv4Cidr } from "../rules/ip-cidr.ts";
+import { ipMatchesCidr } from "../rules/ip-cidr.ts";
 
 interface PacProxyConfig {
   host: string;
@@ -21,7 +21,7 @@ export function ruleMatchesHostname(rule: ParsedRule, hostname: string): boolean
     case "DOMAIN-SUFFIX":
       return host === rule.value || host.endsWith(`.${rule.value}`);
     case "IP-CIDR":
-      return ipv4MatchesCidr(host, rule.value);
+      return ipMatchesCidr(host, rule.value);
   }
 }
 
@@ -47,11 +47,7 @@ function appendRuleCondition(
     }
 
     case "IP-CIDR": {
-      const cidr = parseIPv4Cidr(rule.value);
-      if (!cidr) break;
-      lines.push(
-        `  if (/^\\d+\\.\\d+\\.\\d+\\.\\d+$/.test(host) && isInNet(host, ${JSON.stringify(cidr.address)}, ${JSON.stringify(cidr.mask)})) return ${serializedResult};`,
-      );
+      lines.push(`  if (isInNetEx(host, ${JSON.stringify(rule.value)})) return ${serializedResult};`);
       break;
     }
   }

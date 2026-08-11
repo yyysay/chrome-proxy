@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  extractDisabledConfigRules,
   SAMPLE_CONFIG_YAML,
   serializeConfigDocument,
   validateConfigDocument,
@@ -21,9 +22,23 @@ test("visual document serialization preserves a valid configuration", () => {
   const parsed = validateConfigDocument(SAMPLE_CONFIG_YAML);
   assert.ok(parsed.document);
   const serialized = serializeConfigDocument(parsed.document);
+  assert.ok(serialized.indexOf("proxies:") < serialized.indexOf("rules:"));
+  assert.ok(serialized.indexOf("rules:") < serialized.indexOf("rule-providers:"));
   const roundTrip = validateConfigDocument(serialized);
   assert.equal(roundTrip.ok, true);
   assert.deepEqual(roundTrip.document, parsed.document);
+});
+
+test("disabled rules round-trip as Mihomo-compatible YAML comments", () => {
+  const parsed = validateConfigDocument(SAMPLE_CONFIG_YAML);
+  assert.ok(parsed.document);
+  const disabled = "DOMAIN,disabled.example,DIRECT";
+  const serialized = serializeConfigDocument(parsed.document, [disabled]);
+  assert.match(serialized, /# disabled-rule: DOMAIN,disabled\.example,DIRECT/);
+  assert.deepEqual(extractDisabledConfigRules(serialized), [disabled]);
+  const runtime = validateConfigDocument(serialized);
+  assert.equal(runtime.ok, true);
+  assert.equal(runtime.document?.rules.includes(disabled), false);
 });
 
 test("accepts list providers and DIRECT targets", () => {

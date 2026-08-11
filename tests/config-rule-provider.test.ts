@@ -26,9 +26,11 @@ test("parses list IP-CIDR providers", () => {
 # private networks
 10.0.0.0/8
 192.168.1.0/24
+::/127
 `), [
     { type: "IP-CIDR", value: "10.0.0.0/8" },
     { type: "IP-CIDR", value: "192.168.1.0/24" },
+    { type: "IP-CIDR", value: "::/127" },
   ]);
 });
 

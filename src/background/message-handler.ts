@@ -1,6 +1,8 @@
 import {
   applyConfigDocument,
+  getConfigProviderContent,
   getConfigDocumentState,
+  getSiteProxyStatus,
   refreshConfigProviders,
   testConfigRuleMatch,
 } from "../config/config-service.ts";
@@ -25,8 +27,12 @@ export async function handleMessage(message: RuntimeMessage): Promise<RuntimeRes
       return { ok: true, data: await getProxyStatus() };
     case "GET_CONFIG_DOCUMENT_STATE":
       return { ok: true, data: await getConfigDocumentState() };
+    case "GET_SITE_PROXY_STATUS":
+      return { ok: true, data: await getSiteProxyStatus(message.input) };
+    case "GET_CONFIG_PROVIDER_CONTENT":
+      return { ok: true, data: await getConfigProviderContent(message.name) };
     case "APPLY_CONFIG_DOCUMENT": {
-      const result = await applyConfigDocument(message.yaml, message.sourceUrl);
+      const result = await applyConfigDocument(message.yaml, message.sourceUrl, message.refreshIntervalSeconds);
       await syncActionState();
       return { ok: true, data: result, message: result.pacReapplied ? "配置已保存，PAC 已重新生成" : "配置已保存；开启扩展后生效" };
     }

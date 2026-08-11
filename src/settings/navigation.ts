@@ -14,13 +14,20 @@ const tabPanels = Array.from(document.querySelectorAll<HTMLElement>("[data-tab-p
 
 function styleTabButton(button: HTMLButtonElement, active: boolean): void {
   button.className = active
-    ? "tab inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-extrabold text-emerald-700 ring-1 ring-emerald-100 dark:bg-[#0a84ff]/15 dark:text-[#64d2ff] dark:ring-[#0a84ff]/30"
-    : "tab inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-extrabold text-stone-500 transition hover:bg-stone-50 hover:text-stone-900 dark:text-white/65 dark:hover:bg-white/8 dark:hover:text-white";
+    ? "tab inline-flex shrink-0 items-center rounded-full bg-white/90 px-5 py-2.5 text-sm font-semibold text-stone-900 shadow-[0_2px_10px_rgba(0,0,0,.08)] dark:bg-white/14 dark:text-white"
+    : "tab inline-flex shrink-0 items-center rounded-full px-5 py-2.5 text-sm font-medium text-stone-500 transition hover:bg-white/45 hover:text-stone-800 dark:text-white/45 dark:hover:bg-white/8 dark:hover:text-white/75";
+}
+
+function styleAboutButton(active: boolean): void {
+  aboutButton.className = active
+    ? "about-button inline-flex shrink-0 items-center rounded-full bg-white/90 px-5 py-2.5 text-sm font-semibold text-stone-900 shadow-[0_2px_10px_rgba(0,0,0,.08)] dark:bg-white/14 dark:text-white"
+    : "about-button inline-flex shrink-0 items-center rounded-full px-5 py-2.5 text-sm font-medium text-stone-500 transition hover:bg-white/45 hover:text-stone-800 dark:text-white/45 dark:hover:bg-white/8 dark:hover:text-white/75";
+  aboutButton.setAttribute("aria-selected", String(active));
 }
 
 export function activateTab(tab: SettingsTab): void {
   aboutPanel.hidden = true;
-  aboutButton.className = "about-button inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-extrabold text-stone-500 transition hover:bg-stone-50 hover:text-stone-900 dark:text-white/65 dark:hover:bg-white/8 dark:hover:text-white";
+  styleAboutButton(false);
   aboutButton.setAttribute("aria-pressed", "false");
   for (const button of tabButtons) {
     const active = button.dataset.tabTarget === tab;
@@ -38,7 +45,7 @@ function openAbout(): void {
   }
   for (const panel of tabPanels) panel.hidden = true;
   aboutPanel.hidden = false;
-  aboutButton.className = "about-button inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-extrabold text-emerald-700 ring-1 ring-emerald-100 dark:bg-[#0a84ff]/15 dark:text-[#64d2ff] dark:ring-[#0a84ff]/30";
+  styleAboutButton(true);
   aboutButton.setAttribute("aria-pressed", "true");
 }
 

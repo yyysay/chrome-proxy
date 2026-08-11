@@ -34,3 +34,13 @@ test("rejects unsupported rule types", () => {
   assert.equal(result.rules.length, 0);
   assert.match(result.issues[0]?.message ?? "", /暂不支持/);
 });
+
+test("normalizes and matches IPv6 CIDR rules", () => {
+  const result = parseRules("IP-CIDR,::1/127,PROXY");
+  assert.deepEqual(result.issues, []);
+  assert.equal(result.rules[0].value, "::/127");
+  assert.equal(ruleMatchesHostname(result.rules[0], "::1"), true);
+  assert.equal(ruleMatchesHostname(result.rules[0], "::2"), false);
+  const pac = buildTargetedPacScript([{ ...result.rules[0], target: "proxy" }], new Map([["proxy", { host: "127.0.0.1", port: 7890 }]]), "DIRECT");
+  assert.match(pac, /isInNetEx\(host, "::\/127"\)/);
+});

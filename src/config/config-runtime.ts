@@ -1,6 +1,8 @@
 import { parseRules } from "../rules/parser.ts";
 import {
   CONFIG_DOCUMENT_ACTIVE_KEY,
+  CONFIG_DOCUMENT_REMOTE_STATUS_KEY,
+  CONFIG_DOCUMENT_REFRESH_INTERVAL_KEY,
   CONFIG_DOCUMENT_URL_KEY,
   CONFIG_DOCUMENT_YAML_KEY,
   CONFIG_PROVIDER_CACHE_KEY,
@@ -12,10 +14,17 @@ import {
   type MinimalConfigDocument,
 } from "./config-document.ts";
 import { parseConfigRuleProvider } from "./rule-provider-parser.ts";
+import {
+  DEFAULT_REFRESH_INTERVAL_SECONDS,
+  isSelectableRefreshInterval,
+} from "./refresh-interval.ts";
 
 const MAX_PROVIDER_BYTES = 2 * 1024 * 1024;
 const PROVIDER_TIMEOUT_MS = 10_000;
+const MAX_REMOTE_CONFIG_BYTES = 256 * 1024;
+const LEGACY_CONFIG_REFRESH_INTERVAL_KEY = "configDocumentRefreshIntervalHours";
 export const CONFIG_PROVIDER_REFRESH_ALARM = "refresh-config-providers";
+export const REMOTE_CONFIG_REFRESH_ALARM = "refresh-remote-config";
 
 interface ConfigProviderCache {
   url: string;
@@ -28,14 +37,29 @@ interface ConfigProviderCache {
 
 type ConfigProviderCaches = Record<string, ConfigProviderCache>;
 
+interface RemoteConfigStatus {
+  lastAttemptAt: string;
+  fetchedAt?: string;
+  error?: string;
+}
+
 export interface ConfigDocumentState {
   active: boolean;
   yaml: string;
   sourceUrl: string;
+  remote: {
+    status: "local" | "ready" | "error";
+    intervalSeconds: number;
+    lastAttemptAt?: string;
+    fetchedAt?: string;
+    error?: string;
+  };
   nodes: Array<{ name: string; host: string; port: number }>;
   providers: Record<string, {
     status: "missing" | "ready" | "cached";
     fetchedAt?: string;
+    lastAttemptAt?: string;
+    ruleCount?: number;
     error?: string;
   }>;
 }
@@ -76,6 +100,20 @@ async function loadProviderCaches(): Promise<ConfigProviderCaches> {
   );
 }
 
+function isRemoteConfigStatus(value: unknown): value is RemoteConfigStatus {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const status = value as Partial<RemoteConfigStatus>;
+  return typeof status.lastAttemptAt === "string" &&
+    (status.fetchedAt === undefined || typeof status.fetchedAt === "string") &&
+    (status.error === undefined || typeof status.error === "string");
+}
+
+async function loadRemoteConfigStatus(): Promise<RemoteConfigStatus | undefined> {
+  const stored = await chrome.storage.local.get(CONFIG_DOCUMENT_REMOTE_STATUS_KEY);
+  const value = stored[CONFIG_DOCUMENT_REMOTE_STATUS_KEY];
+  return isRemoteConfigStatus(value) ? value : undefined;
+}
+
 async function fetchProvider(provider: ConfigRuleProvider): Promise<ConfigProviderCache> {
   const lastAttemptAt = new Date().toISOString();
   const response = await fetch(provider.url, {
@@ -101,16 +139,32 @@ async function fetchProvider(provider: ConfigRuleProvider): Promise<ConfigProvid
   };
 }
 
+function activeRuleProviders(document: MinimalConfigDocument): ConfigRuleProvider[] {
+  const referenced = new Set(document.rules.flatMap((rule) => {
+    const parts = rule.split(",").map((part) => part.trim());
+    return parts[0]?.toUpperCase() === "RULE-SET" && parts[1] ? [parts[1]] : [];
+  }));
+  return Object.values(document.ruleProviders).filter((provider) => referenced.has(provider.name));
+}
+
 async function updateProviders(
   document: MinimalConfigDocument,
   previous: ConfigProviderCaches,
+  dueOnly = false,
 ): Promise<{ caches: ConfigProviderCaches; refreshed: number; cached: number }> {
-  const entries = await Promise.all(Object.values(document.ruleProviders).map(async (provider) => {
+  const entries = await Promise.all(activeRuleProviders(document).map(async (provider) => {
+    const previousCache = previous[provider.name];
+    const lastAttemptAt = Date.parse(previousCache?.lastAttemptAt ?? "");
+    const isDue = !previousCache || previousCache.url !== provider.url ||
+      !Number.isFinite(lastAttemptAt) || Date.now() - lastAttemptAt >= provider.interval * 1000;
+    if (dueOnly && !isDue) {
+      return [provider.name, previousCache, "skipped"] as const;
+    }
     try {
-      return [provider.name, await fetchProvider(provider), false] as const;
+      return [provider.name, await fetchProvider(provider), "refreshed"] as const;
     } catch (error) {
       const message = error instanceof Error ? error.message : "规则包下载失败";
-      const cached = previous[provider.name];
+      const cached = previousCache;
       if (!cached || cached.url !== provider.url) {
         throw new Error(`${provider.name} 下载失败：${message}`);
       }
@@ -124,14 +178,14 @@ async function updateProviders(
         lastAttemptAt: new Date().toISOString(),
         status: "cached" as const,
         error: message,
-      }, true] as const;
+      }, "cached"] as const;
     }
   }));
 
   return {
     caches: Object.fromEntries(entries.map(([name, cache]) => [name, cache])),
-    refreshed: entries.filter((entry) => !entry[2]).length,
-    cached: entries.filter((entry) => entry[2]).length,
+    refreshed: entries.filter((entry) => entry[2] === "refreshed").length,
+    cached: entries.filter((entry) => entry[2] === "cached").length,
   };
 }
 
@@ -139,10 +193,13 @@ async function readStoredDocument(): Promise<{
   active: boolean;
   yaml: string;
   sourceUrl: string;
+  refreshIntervalSeconds: number;
   document?: MinimalConfigDocument;
 }> {
   const stored = await chrome.storage.local.get([
     CONFIG_DOCUMENT_ACTIVE_KEY,
+    CONFIG_DOCUMENT_REFRESH_INTERVAL_KEY,
+    LEGACY_CONFIG_REFRESH_INTERVAL_KEY,
     CONFIG_DOCUMENT_URL_KEY,
     CONFIG_DOCUMENT_YAML_KEY,
   ]);
@@ -156,23 +213,45 @@ async function readStoredDocument(): Promise<{
     sourceUrl: typeof stored[CONFIG_DOCUMENT_URL_KEY] === "string"
       ? stored[CONFIG_DOCUMENT_URL_KEY]
       : "",
+    refreshIntervalSeconds: isSelectableRefreshInterval(Number(stored[CONFIG_DOCUMENT_REFRESH_INTERVAL_KEY]), true)
+      ? Number(stored[CONFIG_DOCUMENT_REFRESH_INTERVAL_KEY])
+      : isSelectableRefreshInterval(Number(stored[LEGACY_CONFIG_REFRESH_INTERVAL_KEY]) * 3600, true)
+        ? Number(stored[LEGACY_CONFIG_REFRESH_INTERVAL_KEY]) * 3600
+        : DEFAULT_REFRESH_INTERVAL_SECONDS,
     document: validation.document,
   };
 }
 
 export async function getConfigDocumentState(): Promise<ConfigDocumentState> {
-  const [stored, caches] = await Promise.all([readStoredDocument(), loadProviderCaches()]);
+  const [stored, caches, remoteStatus] = await Promise.all([
+    readStoredDocument(),
+    loadProviderCaches(),
+    loadRemoteConfigStatus(),
+  ]);
   const providers: ConfigDocumentState["providers"] = {};
   for (const provider of Object.values(stored.document?.ruleProviders ?? {})) {
     const cache = caches[provider.name];
     providers[provider.name] = cache?.url === provider.url
-      ? { status: cache.status, fetchedAt: cache.fetchedAt, error: cache.error }
+      ? {
+          status: cache.status,
+          fetchedAt: cache.fetchedAt,
+          lastAttemptAt: cache.lastAttemptAt,
+          ruleCount: parseConfigRuleProvider(provider, cache.content).length,
+          error: cache.error,
+        }
       : { status: "missing" };
   }
   return {
     active: stored.active,
     yaml: stored.yaml,
     sourceUrl: stored.sourceUrl,
+    remote: {
+      status: !stored.sourceUrl ? "local" : remoteStatus?.error ? "error" : "ready",
+      intervalSeconds: stored.refreshIntervalSeconds,
+      lastAttemptAt: remoteStatus?.lastAttemptAt,
+      fetchedAt: remoteStatus?.fetchedAt,
+      error: remoteStatus?.error,
+    },
     nodes: (stored.document?.proxies ?? []).map((node) => ({
       name: node.name,
       host: node.server,
@@ -182,7 +261,7 @@ export async function getConfigDocumentState(): Promise<ConfigDocumentState> {
   };
 }
 
-export async function activateConfigDocument(yaml: string, sourceUrl = ""): Promise<{
+export async function activateConfigDocument(yaml: string, sourceUrl = "", refreshIntervalSeconds = DEFAULT_REFRESH_INTERVAL_SECONDS): Promise<{
   state: ConfigDocumentState;
   refreshed: number;
   cached: number;
@@ -201,15 +280,32 @@ export async function activateConfigDocument(yaml: string, sourceUrl = ""): Prom
       throw new Error("远程 YAML 来源地址无效");
     }
   }
+  if (normalizedSourceUrl && !isSelectableRefreshInterval(refreshIntervalSeconds, true)) {
+    throw new Error("远程订阅自动更新周期无效");
+  }
   const previous = await loadProviderCaches();
   const updated = await updateProviders(validation.document, previous);
+  const now = new Date().toISOString();
   await chrome.storage.local.set({
     [CONFIG_DOCUMENT_ACTIVE_KEY]: true,
     [CONFIG_DOCUMENT_URL_KEY]: normalizedSourceUrl,
     [CONFIG_DOCUMENT_YAML_KEY]: yaml,
     [CONFIG_PROVIDER_CACHE_KEY]: updated.caches,
+    ...(normalizedSourceUrl
+      ? {
+          [CONFIG_DOCUMENT_REMOTE_STATUS_KEY]: { lastAttemptAt: now, fetchedAt: now },
+          [CONFIG_DOCUMENT_REFRESH_INTERVAL_KEY]: refreshIntervalSeconds,
+        }
+      : {}),
   });
-  await syncConfigProviderRefreshAlarm();
+  if (!normalizedSourceUrl) {
+    await chrome.storage.local.remove([
+      CONFIG_DOCUMENT_REMOTE_STATUS_KEY,
+      CONFIG_DOCUMENT_REFRESH_INTERVAL_KEY,
+    ]);
+  }
+  await chrome.storage.local.remove(LEGACY_CONFIG_REFRESH_INTERVAL_KEY);
+  await syncConfigRefreshAlarms();
   return {
     state: await getConfigDocumentState(),
     refreshed: updated.refreshed,
@@ -217,7 +313,7 @@ export async function activateConfigDocument(yaml: string, sourceUrl = ""): Prom
   };
 }
 
-export async function refreshConfigDocumentProviders(): Promise<{
+export async function refreshConfigDocumentProviders(dueOnly = false): Promise<{
   state: ConfigDocumentState;
   refreshed: number;
   cached: number;
@@ -225,7 +321,7 @@ export async function refreshConfigDocumentProviders(): Promise<{
   const stored = await readStoredDocument();
   if (!stored.active || !stored.document) throw new Error("尚未应用测试配置");
   const previous = await loadProviderCaches();
-  const updated = await updateProviders(stored.document, previous);
+  const updated = await updateProviders(stored.document, previous, dueOnly);
   await chrome.storage.local.set({ [CONFIG_PROVIDER_CACHE_KEY]: updated.caches });
   return {
     state: await getConfigDocumentState(),
@@ -237,14 +333,58 @@ export async function refreshConfigDocumentProviders(): Promise<{
 export async function deactivateConfigDocument(): Promise<ConfigDocumentState> {
   await chrome.storage.local.set({ [CONFIG_DOCUMENT_ACTIVE_KEY]: false });
   if (chrome.alarms) await chrome.alarms.clear(CONFIG_PROVIDER_REFRESH_ALARM);
+  if (chrome.alarms) await chrome.alarms.clear(REMOTE_CONFIG_REFRESH_ALARM);
   return getConfigDocumentState();
+}
+
+async function fetchRemoteConfigYaml(url: string): Promise<string> {
+  const response = await fetch(url, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REMOTE_CONFIG_BYTES) {
+    throw new Error("远程 YAML 超过 256 KB 限制");
+  }
+  const yaml = await response.text();
+  if (new TextEncoder().encode(yaml).byteLength > MAX_REMOTE_CONFIG_BYTES) {
+    throw new Error("远程 YAML 超过 256 KB 限制");
+  }
+  return yaml;
+}
+
+export async function refreshRemoteConfigDocument(): Promise<{
+  state: ConfigDocumentState;
+  refreshed: number;
+  cached: number;
+}> {
+  const stored = await readStoredDocument();
+  if (!stored.active || !stored.sourceUrl) throw new Error("当前未使用远程 YAML 订阅");
+  const previousStatus = await loadRemoteConfigStatus();
+  const lastAttemptAt = new Date().toISOString();
+  try {
+    const yaml = await fetchRemoteConfigYaml(stored.sourceUrl);
+    return await activateConfigDocument(yaml, stored.sourceUrl, stored.refreshIntervalSeconds);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "远程 YAML 同步失败";
+    await chrome.storage.local.set({
+      [CONFIG_DOCUMENT_REMOTE_STATUS_KEY]: {
+        lastAttemptAt,
+        fetchedAt: previousStatus?.fetchedAt,
+        error: message,
+      },
+    });
+    throw new Error(`远程 YAML 自动同步失败：${message}`);
+  }
 }
 
 export async function syncConfigProviderRefreshAlarm(): Promise<void> {
   if (!chrome.alarms) return;
   const stored = await readStoredDocument();
-  const intervals = Object.values(stored.document?.ruleProviders ?? {})
-    .map((provider) => provider.interval);
+  const intervals = stored.document
+    ? activeRuleProviders(stored.document).map((provider) => provider.interval)
+    : [];
   if (!stored.active || intervals.length === 0) {
     await chrome.alarms.clear(CONFIG_PROVIDER_REFRESH_ALARM);
     return;
@@ -254,10 +394,53 @@ export async function syncConfigProviderRefreshAlarm(): Promise<void> {
   });
 }
 
+export async function syncRemoteConfigRefreshAlarm(): Promise<void> {
+  if (!chrome.alarms) return;
+  const stored = await readStoredDocument();
+  if (!stored.active || !stored.sourceUrl || stored.refreshIntervalSeconds === 0) {
+    await chrome.alarms.clear(REMOTE_CONFIG_REFRESH_ALARM);
+    return;
+  }
+  await chrome.alarms.create(REMOTE_CONFIG_REFRESH_ALARM, {
+    periodInMinutes: Math.max(1, stored.refreshIntervalSeconds / 60),
+  });
+}
+
+export async function syncConfigRefreshAlarms(): Promise<void> {
+  await Promise.all([syncConfigProviderRefreshAlarm(), syncRemoteConfigRefreshAlarm()]);
+}
+
+export async function getConfigProviderContent(name: string): Promise<{
+  name: string;
+  url: string;
+  content: string;
+  ruleCount: number;
+  fetchedAt: string;
+  lastAttemptAt: string;
+  status: "ready" | "cached";
+  error?: string;
+}> {
+  const [stored, caches] = await Promise.all([readStoredDocument(), loadProviderCaches()]);
+  const provider = stored.document?.ruleProviders[name];
+  if (!provider) throw new Error(`配置中不存在规则包：${name}`);
+  const cache = caches[name];
+  if (!cache || cache.url !== provider.url) throw new Error(`${name} 尚无可查看的缓存`);
+  return {
+    name,
+    url: provider.url,
+    content: cache.content,
+    ruleCount: parseConfigRuleProvider(provider, cache.content).length,
+    fetchedAt: cache.fetchedAt,
+    lastAttemptAt: cache.lastAttemptAt,
+    status: cache.status,
+    error: cache.error,
+  };
+}
+
 export async function loadActiveConfigRuntime(): Promise<ActiveConfigRuntime | undefined> {
   const [stored, caches] = await Promise.all([readStoredDocument(), loadProviderCaches()]);
   if (!stored.active || !stored.document) return undefined;
-  for (const provider of Object.values(stored.document.ruleProviders)) {
+  for (const provider of activeRuleProviders(stored.document)) {
     const cache = caches[provider.name];
     if (!cache || cache.url !== provider.url) throw new Error(`${provider.name} 尚无可用缓存`);
   }
@@ -307,7 +490,7 @@ export function compileConfigRuntime(runtime: ActiveConfigRuntime): CompiledConf
     { host: proxy.server, port: proxy.port },
   ]));
   const providerHosts = [...new Set([
-    ...Object.values(runtime.document.ruleProviders).map((provider) => new URL(provider.url).hostname.toLowerCase()),
+    ...activeRuleProviders(runtime.document).map((provider) => new URL(provider.url).hostname.toLowerCase()),
     ...(runtime.sourceUrl ? [new URL(runtime.sourceUrl).hostname.toLowerCase()] : []),
   ])];
   return {

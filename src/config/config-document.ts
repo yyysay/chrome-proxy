@@ -12,6 +12,12 @@ export const SAMPLE_CONFIG_YAML = `proxies:
     server: 10.0.0.11
     port: 7890
 
+rules:
+  - RULE-SET,private-network,DIRECT
+  - RULE-SET,pinterest,香港
+  - DOMAIN-SUFFIX,example.com,日本
+  - MATCH,香港
+
 rule-providers:
   pinterest:
     url: https://example.com/pinterest.yaml
@@ -24,12 +30,6 @@ rule-providers:
     behavior: ipcidr
     format: list
     interval: 86400
-
-rules:
-  - RULE-SET,private-network,DIRECT
-  - RULE-SET,pinterest,香港
-  - DOMAIN-SUFFIX,example.com,日本
-  - MATCH,香港
 `;
 
 const RULE_BEHAVIORS = new Set(["domain", "ipcidr", "classical"]);
@@ -65,7 +65,14 @@ export interface MinimalConfigDocument {
   rules: string[];
 }
 
-export function serializeConfigDocument(document: MinimalConfigDocument): string {
+const DISABLED_RULE_PATTERN = /^\s*#\s*disabled-rule:\s*(.+?)\s*$/gmi;
+
+export function extractDisabledConfigRules(text: string): string[] {
+  return Array.from(text.matchAll(DISABLED_RULE_PATTERN), (match) => match[1].trim())
+    .filter(Boolean);
+}
+
+export function serializeConfigDocument(document: MinimalConfigDocument, disabledRules: readonly string[] = []): string {
   const providers = Object.fromEntries(Object.values(document.ruleProviders).map((provider) => [
     provider.name,
     {
@@ -76,11 +83,18 @@ export function serializeConfigDocument(document: MinimalConfigDocument): string
       interval: provider.interval,
     },
   ]));
-  return stringify({
+  const yaml = stringify({
     proxies: document.proxies,
-    "rule-providers": providers,
     rules: document.rules,
+    "rule-providers": providers,
   }, { lineWidth: 0 });
+  if (disabledRules.length === 0) return yaml;
+  const lines = yaml.trimEnd().split("\n");
+  const rulesIndex = lines.findIndex((line) => line === "rules:");
+  const matchIndex = lines.findIndex((line, index) => index > rulesIndex && /^\s*-\s+MATCH,/.test(line));
+  const insertAt = matchIndex >= 0 ? matchIndex : lines.length;
+  lines.splice(insertAt, 0, ...disabledRules.map((rule) => `  # disabled-rule: ${rule}`));
+  return `${lines.join("\n")}\n`;
 }
 
 interface ConfigSummary {

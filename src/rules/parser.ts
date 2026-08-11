@@ -2,7 +2,7 @@ import type {
   ParsedRule,
   RuleType,
 } from "./types";
-import { normalizeIPv4Cidr } from "./ip-cidr.ts";
+import { normalizeIpCidr } from "./ip-cidr.ts";
 
 const SUPPORTED_TYPES = new Set([
   "DOMAIN",
@@ -84,13 +84,13 @@ function normalizeRuleValue(
     return normalized.replace(/^\.+/, "");
   }
 
-  if (rawType === "IP-CIDR") return normalizeIPv4Cidr(normalized) ?? normalized;
+  if (rawType === "IP-CIDR") return normalizeIpCidr(normalized) ?? normalized;
 
   return normalized;
 }
 
 function isValidRuleValue(type: string, value: string): boolean {
-  if (type === "IP-CIDR") return Boolean(normalizeIPv4Cidr(value));
+  if (type === "IP-CIDR") return Boolean(normalizeIpCidr(value));
   return (
     value.length <= 253 &&
     !/\s|\/|:/.test(value) &&

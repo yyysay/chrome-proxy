@@ -3,7 +3,9 @@ export type RuntimeMessage =
   | { type: "DISABLE_PROXY" }
   | { type: "GET_PROXY_STATUS" }
   | { type: "GET_CONFIG_DOCUMENT_STATE" }
-  | { type: "APPLY_CONFIG_DOCUMENT"; yaml: string; sourceUrl?: string }
+  | { type: "GET_SITE_PROXY_STATUS"; input: string }
+  | { type: "GET_CONFIG_PROVIDER_CONTENT"; name: string }
+  | { type: "APPLY_CONFIG_DOCUMENT"; yaml: string; sourceUrl?: string; refreshIntervalSeconds?: number }
   | { type: "REFRESH_CONFIG_PROVIDERS" }
   | { type: "GET_NETWORK_INFO"; nodeName?: string }
   | { type: "TEST_RULE_MATCH"; input: string }

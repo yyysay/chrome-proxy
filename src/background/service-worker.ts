@@ -14,11 +14,11 @@ import {
 } from "./diagnostics.ts";
 import { handleMessage } from "./message-handler.ts";
 import { scheduleReconcile } from "./reconcile-scheduler.ts";
-import { syncConfigProviderRefreshAlarm } from "../config/config-runtime.ts";
+import { syncConfigRefreshAlarms } from "../config/config-runtime.ts";
 
 async function initializeExtension(reason: string): Promise<void> {
   await migrateStoredData();
-  await syncConfigProviderRefreshAlarm();
+  await syncConfigRefreshAlarms();
   const stored = await chrome.storage.local.get(INSTALL_TIME_KEY);
 
   if (!stored[INSTALL_TIME_KEY]) {
@@ -41,7 +41,7 @@ async function initializeExtension(reason: string): Promise<void> {
 
 async function restoreExtensionOnStartup(): Promise<void> {
   await migrateStoredData();
-  await syncConfigProviderRefreshAlarm();
+  await syncConfigRefreshAlarms();
   scheduleReconcile("runtime.startup");
   await syncActionState();
 }
@@ -67,6 +67,16 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.alarms.onAlarm.addListener(handleRefreshAlarm);
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  void syncActionState(tabId).catch(() => undefined);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.url || changeInfo.status === "complete") {
+    void syncActionState(tabId, changeInfo.url).catch(() => undefined);
+  }
+});
 
 chrome.proxy.settings.onChange.addListener((details) => {
   const value = details.value as chrome.proxy.ProxyConfig | undefined;

@@ -4,6 +4,13 @@ proxies:
     server: 127.0.0.1
     port: 7890
 
+rules:
+  - RULE-SET,google,local
+  - DOMAIN-SUFFIX,example.com,DIRECT
+  - IP-CIDR,10.0.0.0/8,DIRECT
+  - IP-CIDR,::/127,DIRECT
+  - MATCH,local
+
 rule-providers:
   google:
     type: http
@@ -11,9 +18,3 @@ rule-providers:
     format: yaml
     url: https://example.com/google.yaml
     interval: 86400
-
-rules:
-  - RULE-SET,google,local
-  - DOMAIN-SUFFIX,example.com,DIRECT
-  - IP-CIDR,10.0.0.0/8,DIRECT
-  - MATCH,local

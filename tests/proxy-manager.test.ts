@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { activateConfigDocument } from "../src/config/config-runtime.ts";
-import { testConfigRuleMatch } from "../src/config/config-service.ts";
+import { getSiteProxyStatus, testConfigRuleMatch } from "../src/config/config-service.ts";
 import { beginNetworkInfoCheck, finishNetworkInfoCheck } from "../src/proxy/network-probe.ts";
 import { disableProxy, enableProxy, getProxyStatus, reconcileProxy } from "../src/proxy/pac-controller.ts";
 import { PROXY_STATE_KEY } from "../src/shared/storage-keys.ts";
@@ -40,6 +40,7 @@ proxies:
 rules:
   - DOMAIN,hk.example,香港
   - DOMAIN,jp.example,日本
+  - DOMAIN,direct.example,DIRECT
   - MATCH,香港
 `;
 
@@ -57,6 +58,8 @@ test("active YAML drives enable, status, multi-node PAC, match test and disable"
   assert.match(pac, /jp\.example[^\n]+PROXY 10\.0\.0\.11:7891/);
   assert.equal((await getProxyStatus()).configured, true);
   assert.deepEqual(await testConfigRuleMatch("jp.example"), { hostname: "jp.example", action: "日本", matched: true, rule: { type: "DOMAIN", value: "jp.example" } });
+  assert.equal((await getSiteProxyStatus("https://jp.example/")).proxied, true);
+  assert.equal((await getSiteProxyStatus("https://direct.example/")).proxied, false);
   await disableProxy();
   assert.equal((mock.data.get(PROXY_STATE_KEY) as { desiredEnabled: boolean }).desiredEnabled, false);
   assert.equal(mock.proxyValue.mode, "system");
