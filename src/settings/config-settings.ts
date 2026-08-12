@@ -112,9 +112,10 @@ function providerIntervalSelect(interval: number): HTMLSelectElement {
 function deleteButton(label: string, action: () => void): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = DELETE_CLASS;
-  button.textContent = "删除";
+  button.className = `${DELETE_CLASS} grid size-8 place-items-center p-0`;
+  button.innerHTML = '<svg viewBox="0 0 24 24" class="size-4" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
   button.setAttribute("aria-label", label);
+  button.title = label;
   button.addEventListener("click", action);
   return button;
 }
@@ -138,7 +139,7 @@ function emptyState(container: HTMLElement, text: string): void {
 
 function row(className: string): HTMLDivElement {
   const element = document.createElement("div");
-  element.className = `grid items-end gap-2.5 rounded-[20px] border border-black/[.07] bg-white p-3 shadow-[0_2px_8px_rgba(0,0,0,.04)] dark:border-white/10 dark:bg-[#1c1c1e] ${className}`;
+  element.className = `grid items-end gap-2.5 rounded-[20px] border border-white/70 bg-white/58 p-3 shadow-[0_5px_18px_rgba(30,50,45,.06),inset_0_1px_0_rgba(255,255,255,.82)] backdrop-blur-xl backdrop-saturate-150 dark:border-white/11 dark:bg-[#222224]/62 dark:shadow-[0_6px_20px_rgba(0,0,0,.24),inset_0_1px_0_rgba(255,255,255,.08)] ${className}`;
   return element;
 }
 
@@ -209,10 +210,16 @@ function renderNodes(): void {
   nodeList.replaceChildren();
   nodeCount.textContent = String(visualDocument.proxies.length);
   visualDocument.proxies.forEach((node, index) => {
-    const card = row("grid-cols-[minmax(90px,.8fr)_minmax(140px,1.4fr)_80px_auto]");
+    const card = row("grid-cols-[minmax(100px,.8fr)_minmax(150px,1.4fr)_88px_44px]");
+    card.className = card.className.replace("items-end", "items-center").replace(" p-3 ", " p-2.5 ");
     const name = input(node.name, "节点名称");
     const server = input(node.server, "主机或 IP");
-    const port = input(String(node.port), "端口", "number");
+    const port = input(node.port > 0 ? String(node.port) : "", "端口", "number");
+    for (const [control, label] of [[name, "节点名称"], [server, "服务器地址"], [port, "端口"]] as const) {
+      control.className = "min-w-0 rounded-full border-0 bg-black/[.04] px-3 py-2 text-xs font-medium outline-none ring-[#007aff]/20 transition focus:ring-2 dark:bg-white/8 dark:text-white/65";
+      control.setAttribute("aria-label", label);
+      control.title = label;
+    }
     let previousName = node.name;
     port.min = "1"; port.max = "65535";
     name.addEventListener("input", () => {
@@ -236,7 +243,7 @@ function renderNodes(): void {
     name.addEventListener("change", () => renderVisualEditor());
     server.addEventListener("input", () => { node.server = server.value; writeYamlFromVisual(); });
     port.addEventListener("input", () => { node.port = Number(port.value); writeYamlFromVisual(); });
-    card.append(labeled(name, "名称"), labeled(server, "服务器"), labeled(port, "端口"), deleteButton(`删除节点 ${node.name}`, () => {
+    card.append(name, server, port, deleteButton(`删除节点 ${node.name}`, () => {
       visualDocument.proxies.splice(index, 1);
       writeYamlFromVisual(true);
     }));
@@ -251,9 +258,9 @@ function renderProviders(): void {
   Object.values(visualDocument.ruleProviders).forEach((provider) => {
     const status = runtimeState?.providers[provider.name];
     const container = document.createElement("div");
-    container.className = "group overflow-hidden rounded-[22px] border border-black/[.07] bg-white px-3 py-2.5 shadow-[0_2px_8px_rgba(0,0,0,.045)] dark:border-white/10 dark:bg-[#1c1c1e]";
+    container.className = "group overflow-hidden rounded-[22px] border border-white/70 bg-white/58 px-3 py-2.5 shadow-[0_5px_18px_rgba(30,50,45,.06),inset_0_1px_0_rgba(255,255,255,.82)] backdrop-blur-xl backdrop-saturate-150 dark:border-white/11 dark:bg-[#222224]/62 dark:shadow-[0_6px_20px_rgba(0,0,0,.24),inset_0_1px_0_rgba(255,255,255,.08)]";
     const summary = document.createElement("div");
-    summary.className = "grid grid-cols-[minmax(0,1fr)_82px_70px_112px_76px_48px_48px_44px] items-center gap-2";
+    summary.className = "grid min-w-0 grid-cols-[40px_minmax(180px,1fr)_88px_88px_88px_32px_32px_32px] items-center gap-1";
     const name = input(provider.name, "规则包名称");
     const url = input(provider.url, "https://…", "url");
     const behavior = select(["domain", "ipcidr", "classical"], provider.behavior);
@@ -261,12 +268,12 @@ function renderProviders(): void {
     const interval = providerIntervalSelect(provider.interval);
     name.className = "min-w-0 bg-transparent text-sm font-semibold outline-none";
     url.className = "w-full rounded-xl border border-black/[.055] bg-[#f5f5f7] px-3 py-2.5 text-xs outline-none ring-[#007aff]/20 focus:border-transparent focus:ring-2 dark:border-white/10 dark:bg-[#101012]";
-    for (const control of [behavior, format, interval]) {
-      control.className = "min-w-0 rounded-full border-0 bg-black/[.04] px-2.5 py-2 text-xs font-medium outline-none dark:bg-white/8 dark:text-white/65";
+    for (const control of [behavior, format]) {
+      control.className = "min-w-0 rounded-full border-0 bg-black/[.04] px-2 py-2 text-[11px] font-medium outline-none dark:bg-white/8 dark:text-white/65";
     }
+    interval.className = "min-w-0 rounded-full border-0 bg-black/[.04] px-2 py-2 text-[11px] font-medium outline-none dark:bg-white/8 dark:text-white/65";
     const identity = document.createElement("label");
-    identity.className = "grid min-w-0 border-r border-black/[.055] pr-3 dark:border-white/10";
-    identity.append(name);
+    identity.className = "grid min-w-0 px-1";
     const urlEditor = document.createElement("div");
     urlEditor.className = "mt-2 hidden border-t border-black/[.055] px-1 pt-2 dark:border-white/10";
     urlEditor.append(labeled(url, "订阅地址"));
@@ -304,36 +311,41 @@ function renderProviders(): void {
       : status.status === "cached"
         ? `更新失败，使用 ${status.ruleCount ?? 0} 条缓存 · 最近尝试 ${relativeTimeLabel(status.lastAttemptAt)} · ${updateSchedule}`
         : `已更新 ${status.ruleCount ?? 0} 条 · ${relativeTimeLabel(status.fetchedAt)} · ${updateSchedule}`;
-    const statusChip = document.createElement("span");
-    statusChip.className = status?.status === "ready"
-      ? "truncate rounded-full bg-[#34c759]/12 px-2 py-1.5 text-center text-xs font-medium text-[#248a3d] dark:text-[#30d158]"
+    const ruleTotal = document.createElement("span");
+    ruleTotal.className = status?.status === "ready"
+      ? "grid h-7 min-w-7 place-items-center rounded-full bg-[#34c759]/12 px-1.5 text-[11px] font-semibold tabular-nums text-[#248a3d] dark:text-[#30d158]"
       : status?.status === "cached"
-        ? "truncate rounded-full bg-[#ff3b30]/10 px-2 py-1.5 text-center text-xs font-medium text-[#d70015] dark:text-[#ff6961]"
-        : "truncate rounded-full bg-[#ff9f0a]/12 px-2 py-1.5 text-center text-xs font-medium text-[#b25000] dark:text-[#ff9f0a]";
-    statusChip.textContent = status?.status === "ready"
-      ? `${status.ruleCount ?? 0} 条`
-      : status?.status === "cached"
-        ? "使用缓存"
-        : "未更新";
-    statusChip.title = statusDetail;
+        ? "grid h-7 min-w-7 place-items-center rounded-full bg-[#ff3b30]/10 px-1.5 text-[11px] font-semibold tabular-nums text-[#d70015] dark:text-[#ff6961]"
+        : "grid h-7 min-w-7 place-items-center rounded-full bg-black/[.04] px-1.5 text-[11px] font-semibold text-stone-300 dark:bg-white/8 dark:text-white/25";
+    ruleTotal.textContent = status?.ruleCount === undefined ? "–" : String(status.ruleCount);
+    ruleTotal.title = statusDetail;
+    identity.append(name);
     const view = document.createElement("button");
     view.type = "button";
-    view.className = "rounded-full px-1 py-2 text-center text-xs font-medium text-[#007aff] transition hover:bg-[#007aff]/8 disabled:text-stone-300 dark:text-[#0a84ff] dark:disabled:text-white/20";
-    view.textContent = "查看";
+    view.className = "grid size-8 place-items-center rounded-full text-stone-300 transition hover:bg-black/[.035] hover:text-stone-600 disabled:text-stone-200 dark:text-white/20 dark:hover:bg-white/8 dark:hover:text-white/65 dark:disabled:text-white/10";
+    view.innerHTML = '<svg viewBox="0 0 24 24" class="size-4" aria-hidden="true"><path d="M2.8 12s3.35-5.25 9.2-5.25S21.2 12 21.2 12s-3.35 5.25-9.2 5.25S2.8 12 2.8 12Z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.75" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
+    view.setAttribute("aria-label", `查看规则包 ${provider.name}`);
+    view.title = "查看规则包";
     view.disabled = !status || status.status === "missing";
     view.addEventListener("click", () => void showProviderContent(provider.name)
       .catch((error) => showToast(error instanceof Error ? error.message : "规则包内容读取失败", "error")));
     const edit = document.createElement("button");
     edit.type = "button";
-    edit.className = "rounded-full px-1 py-2 text-center text-xs font-medium text-stone-400 transition hover:bg-black/[.035] hover:text-stone-700 dark:text-white/35 dark:hover:bg-white/8 dark:hover:text-white/70";
-    edit.textContent = "编辑";
+    edit.className = "grid size-8 place-items-center rounded-full text-stone-300 transition hover:bg-black/[.035] hover:text-stone-600 dark:text-white/20 dark:hover:bg-white/8 dark:hover:text-white/65";
+    const editIcon = '<svg viewBox="0 0 24 24" class="size-4" aria-hidden="true"><path d="m14.3 5.3 4.4 4.4M4.8 19.2l1-4.5L15.5 5a1.7 1.7 0 0 1 2.4 0L19 6.1a1.7 1.7 0 0 1 0 2.4l-9.7 9.7-4.5 1Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const doneIcon = '<svg viewBox="0 0 24 24" class="size-4" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    edit.innerHTML = editIcon;
+    edit.setAttribute("aria-label", `编辑规则包 ${provider.name}`);
+    edit.title = "编辑规则包";
     edit.addEventListener("click", () => {
       const opening = urlEditor.classList.contains("hidden");
       urlEditor.classList.toggle("hidden", !opening);
-      edit.textContent = opening ? "完成" : "编辑";
+      edit.innerHTML = opening ? doneIcon : editIcon;
+      edit.setAttribute("aria-label", opening ? `完成编辑规则包 ${provider.name}` : `编辑规则包 ${provider.name}`);
+      edit.title = opening ? "完成编辑" : "编辑规则包";
       if (opening) { url.focus(); url.select(); }
     });
-    summary.append(identity, behavior, format, interval, statusChip, view, edit, remove);
+    summary.append(ruleTotal, identity, behavior, format, interval, view, edit, remove);
     container.append(summary, urlEditor);
     providerList.append(container);
   });
@@ -531,8 +543,7 @@ refreshProvidersButton.addEventListener("click", () => {
 
 resetSampleButton.addEventListener("click", () => { configInput.value = SAMPLE_CONFIG_YAML; syncVisualFromYaml(); });
 addNodeButton.addEventListener("click", () => {
-  const index = visualDocument.proxies.length + 1;
-  visualDocument.proxies.push({ name: `节点 ${index}`, type: "http", server: "127.0.0.1", port: 7890 });
+  visualDocument.proxies.push({ name: "", type: "http", server: "", port: 0 });
   writeYamlFromVisual(true);
 });
 addProviderButton.addEventListener("click", () => {
