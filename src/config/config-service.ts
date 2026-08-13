@@ -1,6 +1,6 @@
 import { NETWORK_INFO_CACHE_KEY } from "../shared/storage-keys.ts";
 import { ruleMatchesHostname } from "../proxy/pac-builder.ts";
-import { getProxyStatus, reconcileProxy } from "../proxy/pac-controller.ts";
+import { reconcileProxy } from "../proxy/pac-controller.ts";
 import {
   activateConfigDocument,
   compileConfigRuntime,
@@ -65,18 +65,3 @@ export async function testConfigRuleMatch(input: string): Promise<{
     : { hostname, action: compiled.fallbackTarget, matched: false };
 }
 
-export async function getSiteProxyStatus(input: string): Promise<{
-  hostname: string;
-  action: string;
-  proxied: boolean;
-  engineEnabled: boolean;
-  matched: boolean;
-  rule?: { type: string; value: string };
-}> {
-  const [route, status] = await Promise.all([testConfigRuleMatch(input), getProxyStatus()]);
-  return {
-    ...route,
-    proxied: status.applied && route.action !== "DIRECT",
-    engineEnabled: status.applied,
-  };
-}

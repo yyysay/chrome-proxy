@@ -68,16 +68,6 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.alarms.onAlarm.addListener(handleRefreshAlarm);
 
-chrome.tabs.onActivated.addListener(({ tabId }) => {
-  void syncActionState(tabId).catch(() => undefined);
-});
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.url || changeInfo.status === "complete") {
-    void syncActionState(tabId, changeInfo.url).catch(() => undefined);
-  }
-});
-
 chrome.proxy.settings.onChange.addListener((details) => {
   const value = details.value as chrome.proxy.ProxyConfig | undefined;
   if (

@@ -6,41 +6,214 @@
     <link rel="icon" href="/icons/icon-32.png" />
     <title>Auto Proxy</title>
   </head>
-  <body class="bg-[#f5f5f7] font-sans text-stone-900 antialiased dark:bg-black dark:text-[#f5f5f7] dark:[color-scheme:dark]">
-    <main class="w-[356px] p-3">
-      <header class="flex items-center gap-3 px-2 py-2.5">
-        <img id="popup-icon" src="/icons/icon-48.png" alt="Auto Proxy" class="size-9 rounded-xl" />
-        <strong class="min-w-0 flex-1 text-[16px] font-semibold tracking-[-.02em]">Auto Proxy</strong>
-        <button id="open-settings" class="shrink-0 rounded-full bg-white/70 px-3 py-1.5 text-xs font-medium text-stone-400 shadow-sm ring-1 ring-black/[.04] transition hover:bg-white hover:text-stone-700 dark:bg-white/8 dark:text-white/40 dark:ring-white/8 dark:hover:bg-white/12 dark:hover:text-white" type="button">设置</button>
+  <body
+    class="m-0 bg-white font-sans text-stone-900 antialiased dark:bg-black dark:text-[#f5f5f7] dark:[color-scheme:dark]"
+  >
+    <main
+      class="relative w-[400px] overflow-hidden bg-[#f4f5f3] dark:bg-[#171719]"
+    >
+      <header class="flex h-[84px] items-center gap-3 px-5">
+        <img
+          src="/icons/icon-48.png"
+          alt=""
+          class="size-10 shrink-0 rounded-xl"
+          aria-hidden="true"
+        />
+
+        <div class="min-w-0 flex-1">
+          <h1 class="truncate text-[17px] font-semibold tracking-[-.025em]">
+            Auto Proxy
+          </h1>
+          <p
+            class="mt-0.5 text-[10px] font-semibold tracking-[.16em] text-stone-400 dark:text-white/30"
+          >
+            智能分流
+          </p>
+        </div>
+
+        <nav
+          class="flex shrink-0 items-center gap-0.5 rounded-full bg-white/55 p-1 shadow-[0_5px_18px_rgba(30,45,38,.045)] ring-1 ring-black/[.035] backdrop-blur-xl dark:bg-white/[.055] dark:ring-white/[.055]"
+          aria-label="快捷操作"
+        >
+          <div class="group/edit relative size-[34px] rounded-full">
+            <button
+              id="popup-subscription-edit"
+              class="absolute inset-0 z-10 size-full cursor-pointer rounded-full border-0 bg-transparent p-0 text-[0] text-transparent outline-none focus-visible:ring-2 focus-visible:ring-[#168cf1]/40 disabled:cursor-not-allowed disabled:opacity-45"
+              type="button"
+              aria-label="修改订阅"
+            ></button>
+            <span
+              class="pointer-events-none grid size-[34px] place-items-center rounded-full text-stone-400 transition duration-200 group-hover/edit:bg-black/[.055] group-hover/edit:text-stone-700 dark:text-white/35 dark:group-hover/edit:bg-white/[.075] dark:group-hover/edit:text-white/75"
+              aria-hidden="true"
+            >
+              <svg
+                class="size-[18px]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="m4 16-.75 4.25L7.5 19l11-11-3-3Z" />
+                <path d="m14 6 3 3" />
+              </svg>
+            </span>
+          </div>
+
+          <button
+            id="open-settings"
+            class="grid size-[34px] place-items-center rounded-full border-0 bg-transparent p-0 text-stone-400 transition duration-200 hover:bg-black/[.055] hover:text-stone-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168cf1]/35 active:scale-95 dark:text-white/35 dark:hover:bg-white/[.075] dark:hover:text-white/75"
+            type="button"
+            aria-label="高级设置"
+            title="高级设置"
+          >
+            <svg
+              class="size-[18px]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+              <path
+                d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.12.37.34.72.6 1 .3.29.68.46 1.1.49H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z"
+              />
+            </svg>
+          </button>
+        </nav>
+        <span id="popup-subscription-summary" hidden>尚未设置</span>
       </header>
-      <section class="rounded-[22px] border border-black/[.07] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,.045)] dark:border-white/10 dark:bg-[#1c1c1e]">
-        <div class="flex items-center justify-between gap-5">
-          <strong class="text-sm">代理引擎</strong>
-          <button id="proxy-toggle" class="group flex items-center gap-2.5 disabled:cursor-not-allowed disabled:opacity-40" type="button" role="switch" aria-checked="false" aria-label="开启或关闭 Auto Proxy" title="正在读取配置" disabled>
-            <span class="relative h-8 w-14 rounded-full bg-stone-200 transition-colors duration-200 group-[.active]:bg-emerald-500 dark:bg-white/15 dark:group-[.active]:bg-[#30d158]" aria-hidden="true"><span class="absolute left-1 top-1 size-6 rounded-full bg-white shadow-sm transition-transform duration-200 group-[.active]:translate-x-6 dark:shadow-black/35"></span></span>
-            <strong id="toggle-label" class="w-7 text-left text-xs font-semibold tracking-[.08em] text-stone-400 group-[.active]:text-emerald-700 dark:text-white/35 dark:group-[.active]:text-[#30d158]">OFF</strong>
+
+      <section class="px-5 pb-5 pt-2" aria-label="代理控制">
+        <div
+          id="proxy-control-card"
+          class="relative overflow-hidden rounded-[30px] border border-white/80 bg-white/75 opacity-0 shadow-[0_16px_44px_rgba(35,52,43,.075),inset_0_1px_0_rgba(255,255,255,.9)] backdrop-blur-xl dark:border-white/[.065] dark:bg-white/[.055] dark:shadow-[0_18px_48px_rgba(0,0,0,.2),inset_0_1px_0_rgba(255,255,255,.04)]"
+        >
+          <svg
+            class="pointer-events-none absolute -right-7 -top-7 size-36 rotate-[-8deg] text-[#168cf1]/[.055] dark:text-[#168cf1]/[.09]"
+            viewBox="0 0 64 64"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="32" cy="32" r="8" />
+            <path d="M32 24V10" />
+            <path d="m32 10-5 5" />
+            <path d="m32 10 5 5" />
+            <path d="M25 36 13 47" />
+            <path d="m13 47 1-7" />
+            <path d="m13 47 7-1" />
+            <path d="m39 36 12 11" />
+            <path d="m51 47-1-7" />
+            <path d="m51 47-7-1" />
+          </svg>
+
+          <div
+            class="relative flex min-h-[126px] items-start justify-between gap-5 px-6 pb-6 pt-6"
+          >
+            <div class="min-w-0">
+              <span
+                class="block text-[11px] font-semibold tracking-[.12em] text-stone-400 dark:text-white/35"
+                >智能分流</span
+              >
+              <strong
+                id="proxy-status-label"
+                class="mt-2 block text-[29px] font-semibold leading-none tracking-[-.045em] text-stone-800 dark:text-white/90"
+                >未启用</strong
+              >
+              <span
+                id="proxy-status-description"
+                class="mt-3 block text-[11px] font-medium tracking-[.01em] text-stone-400 dark:text-white/35"
+                >点击右侧开关启用智能分流</span
+              >
+            </div>
+
+            <button
+              id="proxy-toggle"
+              class="relative mt-1 h-8 w-14 shrink-0 rounded-full bg-stone-200 p-1 shadow-inner ring-1 ring-black/[.045] transition-[filter] duration-200 hover:brightness-[.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168cf1]/35 active:scale-[.97] disabled:pointer-events-none disabled:opacity-45 dark:bg-white/15 dark:ring-white/[.06]"
+              type="button"
+              role="switch"
+              aria-checked="false"
+              aria-label="开启智能分流"
+              title="正在读取配置"
+              disabled
+            >
+              <span
+                id="proxy-toggle-thumb"
+                class="absolute left-1 top-1 size-6 rounded-full bg-white shadow-[0_2px_7px_rgba(0,0,0,.18)] will-change-transform dark:bg-[#f5f5f3]"
+                aria-hidden="true"
+              ></span>
+            </button>
+          </div>
+
+          <div
+            class="relative flex h-12 items-center justify-center border-t border-black/[.045] px-6 dark:border-white/[.055]"
+            aria-label="配置状态"
+          >
+            <p
+              id="popup-subscription-hint"
+              class="pointer-events-none inline-flex max-w-[300px] items-center gap-2 truncate whitespace-nowrap text-center text-[11px] font-medium tracking-[.02em] text-[#159548] before:size-1 before:shrink-0 before:rounded-full before:bg-current before:opacity-65 data-[status-tone=error]:text-red-500 data-[status-tone=working]:text-stone-400 dark:text-[#30d158] dark:data-[status-tone=error]:text-[#ff6961] dark:data-[status-tone=working]:text-white/35"
+              data-status-tone="ready"
+              role="status"
+              aria-live="polite"
+            >
+              已配置
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <form
+        id="popup-subscription-form"
+        class="absolute inset-x-5 top-[76px] z-30 rounded-[26px] bg-white/95 p-2.5 shadow-[0_18px_48px_rgba(0,0,0,.13)] ring-1 ring-black/[.055] backdrop-blur-xl dark:bg-[#29292c]/95 dark:ring-white/[.08]"
+        hidden
+      >
+        <div class="flex items-center justify-between px-2 pb-2 pt-0.5">
+          <label
+            class="text-[10px] font-semibold tracking-[.16em] text-stone-500 dark:text-white/60"
+            for="popup-subscription-url"
+            >远程订阅</label
+          >
+          <span
+            class="text-[10px] font-medium tracking-[.12em] text-stone-400 dark:text-white/35"
+            aria-hidden="true"
+            >YAML 配置</span
+          >
+        </div>
+
+        <div
+          class="flex items-center gap-1 rounded-full bg-black/[.035] p-1 ring-1 ring-black/[.025] dark:bg-black/20 dark:ring-white/[.035]"
+        >
+          <input
+            id="popup-subscription-url"
+            class="h-9 min-w-0 flex-1 rounded-full border-0 bg-white/90 px-3.5 text-xs text-stone-800 outline-none ring-[#168cf1]/25 transition placeholder:text-stone-400 focus:ring-2 dark:bg-white/[.08] dark:text-white/85 dark:placeholder:text-white/30"
+            type="url"
+            placeholder="粘贴订阅地址"
+            required
+          />
+          <button
+            id="popup-subscription-cancel"
+            class="h-9 shrink-0 rounded-full px-3 text-[11px] font-medium text-stone-500 transition hover:bg-black/[.055] hover:text-stone-800 dark:text-white/45 dark:hover:bg-white/[.07] dark:hover:text-white/75"
+            type="button"
+          >
+            取消
+          </button>
+          <button
+            id="popup-subscription-submit"
+            class="h-9 shrink-0 rounded-full bg-[#168cf1] px-4 text-[11px] font-semibold text-white shadow-[0_3px_11px_rgba(22,140,241,.24)] transition hover:bg-[#0877d4] active:scale-[.97] disabled:opacity-45"
+            type="submit"
+          >
+            应用
           </button>
         </div>
-        <div class="mt-4 flex items-center justify-between rounded-full bg-black/[.035] px-4 py-3 dark:bg-white/[.06]">
-          <strong id="site-host" class="block max-w-[210px] truncate text-sm">正在读取…</strong>
-          <span id="site-status" class="status-badge max-w-[120px] overflow-hidden text-ellipsis" data-status-tone="idle">等待</span>
-        </div>
-      </section>
-      <section class="mt-2 overflow-hidden rounded-[22px] border border-black/[.07] bg-white px-4 py-3 shadow-[0_2px_8px_rgba(0,0,0,.045)] dark:border-white/10 dark:bg-[#1c1c1e]">
-        <div class="flex min-w-0 items-center gap-2">
-          <strong class="shrink-0 text-xs text-stone-500 dark:text-white/55">远程订阅</strong>
-          <small id="popup-subscription-summary" class="min-w-0 flex-1 truncate text-xs text-stone-400 dark:text-white/35">尚未设置</small>
-          <button id="popup-subscription-edit" class="shrink-0 rounded-full px-3 py-2 text-xs font-medium text-[#007aff] transition hover:bg-[#007aff]/8 dark:text-[#0a84ff]" type="button">添加</button>
-        </div>
-        <form id="popup-subscription-form" class="mt-3 border-t border-black/[.055] pt-3 dark:border-white/10" hidden>
-          <input id="popup-subscription-url" class="w-full rounded-full border-0 bg-black/[.04] px-4 py-3 text-xs outline-none ring-[#007aff]/25 transition placeholder:text-stone-400 focus:ring-2 dark:bg-white/[.07] dark:placeholder:text-white/30" type="url" placeholder="粘贴 YAML 订阅地址" required />
-          <div class="mt-2 flex justify-end gap-1">
-            <button id="popup-subscription-cancel" class="rounded-full px-3 py-2 text-xs font-medium text-stone-400 hover:bg-black/[.035] dark:hover:bg-white/[.07]" type="button">取消</button>
-            <button id="popup-subscription-submit" class="rounded-full bg-[#007aff] px-4 py-2 text-xs font-medium text-white transition hover:bg-[#006ee6] disabled:opacity-45 dark:bg-[#0a84ff]" type="submit">应用</button>
-          </div>
-        </form>
-        <p id="popup-subscription-hint" class="mt-2 px-1 text-xs text-stone-400 dark:text-white/40" hidden></p>
-      </section>
+      </form>
     </main>
     <script type="module" src="/src/popup/popup.ts"></script>
   </body>
