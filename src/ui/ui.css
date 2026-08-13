@@ -5,17 +5,15 @@
 }
 
 @utility apple-surface {
-  border: 1px solid rgb(255 255 255 / 0.72);
-  background: rgb(255 255 255 / 0.62);
-  box-shadow: 0 8px 28px rgb(30 50 45 / 0.065), inset 0 1px 0 rgb(255 255 255 / 0.86);
-  backdrop-filter: blur(24px) saturate(155%);
+  border: 1px solid rgb(0 0 0 / 0.06);
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.035);
 }
 
 @utility apple-surface-raised {
-  border: 1px solid rgb(255 255 255 / 0.76);
-  background: rgb(255 255 255 / 0.66);
-  box-shadow: 0 10px 32px rgb(30 50 45 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.9);
-  backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgb(0 0 0 / 0.06);
+  background: rgb(255 255 255 / 0.98);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.045);
 }
 
 [hidden] { display: none !important; }
@@ -26,58 +24,6 @@
   text-rendering: optimizeLegibility;
 }
 
-.liquid-tab-bar {
-  position: fixed;
-  border: 1px solid rgb(255 255 255 / 0.7);
-  border-radius: 9999px;
-  background: rgb(255 255 255 / 0.52);
-  box-shadow: 0 16px 44px rgb(25 55 45 / 0.15), inset 0 1px 0 rgb(255 255 255 / 0.9);
-  backdrop-filter: blur(28px) saturate(175%);
-}
-
-.liquid-tab-indicator {
-  position: absolute;
-  top: 0.375rem;
-  bottom: 0.375rem;
-  left: 0.375rem;
-  z-index: 0;
-  overflow: hidden;
-  border-radius: 9999px;
-  background: rgb(190 224 205 / 0.82);
-  box-shadow: 0 5px 16px rgb(61 125 94 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.78), inset 0 -1px 0 rgb(74 130 101 / 0.09);
-  transition: left 430ms cubic-bezier(.22, 1.25, .36, 1), width 430ms cubic-bezier(.22, 1.25, .36, 1);
-}
-
-.liquid-tab-indicator.is-moving {
-  animation: liquid-indicator-jelly 430ms cubic-bezier(.2, 1.35, .35, 1);
-}
-
-.liquid-tab {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  border-radius: 9999px;
-  padding: 0.625rem 1.25rem;
-  color: rgb(87 83 78 / 0.72);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  font-weight: 500;
-  position: relative;
-  z-index: 1;
-}
-
-.liquid-tab-active {
-  color: rgb(30 86 64);
-  font-weight: 650;
-}
-
-@keyframes liquid-indicator-jelly {
-  0% { transform: scaleX(0.82) scaleY(1.08); opacity: 0.62; }
-  46% { transform: scaleX(1.08) scaleY(0.94); opacity: 1; }
-  74% { transform: scaleX(0.985) scaleY(1.025); }
-  100% { transform: scale(1); }
-}
-
 .settings-page select {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='m1 1 4 4 4-4' fill='none' stroke='%238e8e93' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -85,31 +31,6 @@
   background-repeat: no-repeat;
   background-size: 10px 6px;
   padding-right: 1.8rem !important;
-}
-
-.editor-icon-button {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  flex-shrink: 0;
-  border-radius: 9999px;
-  color: rgb(120 113 108 / 0.72);
-  background: rgb(255 255 255 / 0.68);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
-  outline: 1px solid rgb(0 0 0 / 0.045);
-  transition: color 150ms ease, background 150ms ease, outline-color 150ms ease;
-}
-
-.editor-icon-button:hover {
-  color: rgb(68 64 60);
-  background: rgb(255 255 255 / 0.88);
-  outline-color: rgb(0 0 0 / 0.075);
-}
-
-.editor-icon-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.38;
 }
 
 @keyframes settings-panel-in {
@@ -141,39 +62,15 @@
 .status-badge[data-status-tone="error"] { background: rgb(254 226 226); color: rgb(185 28 28); }
 
 @media (prefers-color-scheme: dark) {
-  .editor-icon-button {
-    color: rgb(255 255 255 / 0.42);
-    background: rgb(255 255 255 / 0.075);
-    box-shadow: none;
-    outline-color: rgb(255 255 255 / 0.09);
-  }
-  .editor-icon-button:hover {
-    color: rgb(255 255 255 / 0.76);
-    background: rgb(255 255 255 / 0.12);
-    outline-color: rgb(255 255 255 / 0.14);
-  }
   .apple-surface {
-    border-color: rgb(255 255 255 / 0.12);
-    background: rgb(34 34 36 / 0.62);
-    box-shadow: 0 10px 30px rgb(0 0 0 / 0.28), inset 0 1px 0 rgb(255 255 255 / 0.08);
+    border-color: rgb(255 255 255 / 0.1);
+    background: rgb(28 28 30 / 0.96);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.24);
   }
   .apple-surface-raised {
-    border-color: rgb(255 255 255 / 0.13);
-    background: rgb(38 38 40 / 0.65);
-    box-shadow: 0 12px 34px rgb(0 0 0 / 0.34), inset 0 1px 0 rgb(255 255 255 / 0.09);
-  }
-  .liquid-tab-bar {
-    border-color: rgb(255 255 255 / 0.16);
-    background: rgb(32 34 33 / 0.58);
-    box-shadow: 0 18px 48px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.11);
-  }
-  .liquid-tab-indicator {
-    background: rgb(63 119 90 / 0.72);
-    box-shadow: 0 6px 18px rgb(20 70 46 / 0.36), inset 0 1px 0 rgb(255 255 255 / 0.14);
-  }
-  .liquid-tab { color: rgb(255 255 255 / 0.48); }
-  .liquid-tab-active {
-    color: rgb(204 243 222);
+    border-color: rgb(255 255 255 / 0.1);
+    background: rgb(28 28 30 / 0.98);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.28);
   }
   .status-badge[data-status-tone="idle"] { background: rgb(255 255 255 / 0.1); color: rgb(255 255 255 / 0.65); }
   .status-badge[data-status-tone="fresh"] { background: rgb(48 209 88 / 0.15); color: rgb(48 209 88); }

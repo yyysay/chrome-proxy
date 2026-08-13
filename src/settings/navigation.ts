@@ -7,37 +7,21 @@ export type SettingsTab = "config" | "tools";
 
 const aboutButton = requiredElement<HTMLButtonElement>("#about-button");
 const aboutPanel = requiredElement<HTMLElement>('[data-view-panel="about"]');
-const tabIndicator = requiredElement<HTMLElement>(".liquid-tab-indicator");
 const versionElement = requiredElement<HTMLElement>("#version");
 const installedAtElement = requiredElement<HTMLElement>("#installed-at");
 const tabButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-tab-target]"));
 const tabPanels = Array.from(document.querySelectorAll<HTMLElement>("[data-tab-panel]"));
-let indicatorReady = false;
-
-function moveTabIndicator(button: HTMLButtonElement): void {
-  tabIndicator.style.left = `${button.offsetLeft}px`;
-  tabIndicator.style.width = `${button.offsetWidth}px`;
-  if (!indicatorReady) {
-    indicatorReady = true;
-    return;
-  }
-  tabIndicator.classList.remove("is-moving");
-  void tabIndicator.offsetWidth;
-  tabIndicator.classList.add("is-moving");
-}
 
 function styleTabButton(button: HTMLButtonElement, active: boolean): void {
   button.className = active
-    ? "tab liquid-tab liquid-tab-active"
-    : "tab liquid-tab";
-  if (active) requestAnimationFrame(() => moveTabIndicator(button));
+    ? "tab inline-flex shrink-0 items-center rounded-full bg-white/90 px-5 py-2.5 text-sm font-semibold text-stone-900 shadow-[0_2px_10px_rgba(0,0,0,.08)] dark:bg-white/14 dark:text-white"
+    : "tab inline-flex shrink-0 items-center rounded-full px-5 py-2.5 text-sm font-medium text-stone-500 transition hover:bg-white/45 hover:text-stone-800 dark:text-white/45 dark:hover:bg-white/8 dark:hover:text-white/75";
 }
 
 function styleAboutButton(active: boolean): void {
   aboutButton.className = active
-    ? "about-button liquid-tab liquid-tab-active"
-    : "about-button liquid-tab";
-  if (active) requestAnimationFrame(() => moveTabIndicator(aboutButton));
+    ? "about-button inline-flex shrink-0 items-center rounded-full bg-white/90 px-5 py-2.5 text-sm font-semibold text-stone-900 shadow-[0_2px_10px_rgba(0,0,0,.08)] dark:bg-white/14 dark:text-white"
+    : "about-button inline-flex shrink-0 items-center rounded-full px-5 py-2.5 text-sm font-medium text-stone-500 transition hover:bg-white/45 hover:text-stone-800 dark:text-white/45 dark:hover:bg-white/8 dark:hover:text-white/75";
   aboutButton.setAttribute("aria-selected", String(active));
 }
 
@@ -87,11 +71,4 @@ aboutButton.addEventListener("click", () => {
   void loadDiagnostics().catch((error) => {
     showToast(error instanceof Error ? error.message : "诊断读取失败", "error");
   });
-});
-
-window.addEventListener("resize", () => {
-  const active = document.querySelector<HTMLButtonElement>('.liquid-tab[aria-selected="true"]');
-  if (!active) return;
-  indicatorReady = false;
-  moveTabIndicator(active);
 });
