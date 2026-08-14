@@ -1,5 +1,12 @@
 import { testConfigRuleMatch } from "../config/config-service.ts";
 import { getProxyStatus } from "../proxy/pac-controller.ts";
+import type { ActiveSiteProxyStatus } from "../shared/runtime-protocol.ts";
+
+const TAB_ACTION_STATE_PREFIX = "tab-action-state:";
+
+function tabActionStateKey(tabId: number): string {
+  return `${TAB_ACTION_STATE_PREFIX}${tabId}`;
+}
 
 function iconPaths(active: boolean): Record<number, string> {
   const prefix = active ? "icon-active" : "icon";
@@ -9,25 +16,70 @@ function iconPaths(active: boolean): Record<number, string> {
   };
 }
 
-async function updateTab(tab: chrome.tabs.Tab, engineEnabled: boolean): Promise<void> {
+async function updateTab(tab: chrome.tabs.Tab, engineEnabled: boolean): Promise<ActiveSiteProxyStatus | undefined> {
+  if (tab.id === undefined) return undefined;
+  const url = tab.url ?? "";
+  let hostname = tab.title || "浏览器内部页面";
+  let action = "不可用";
   let active = false;
   let title = engineEnabled ? "Auto Proxy：当前页面直连" : "Auto Proxy：已关闭";
-  if (engineEnabled && tab.url && /^https?:/i.test(tab.url)) {
-    try {
-      const route = await testConfigRuleMatch(tab.url);
-      active = route.action !== "DIRECT";
-      title = active
-        ? `Auto Proxy：当前页面经 ${route.action} 代理`
-        : "Auto Proxy：当前页面直连";
-    } catch {
-      title = "Auto Proxy：无法判断当前页面";
+  if (/^https?:/i.test(url)) {
+    hostname = new URL(url).hostname;
+    if (engineEnabled) {
+      try {
+        const route = await testConfigRuleMatch(url);
+        action = route.action;
+        active = route.action !== "DIRECT";
+        title = active
+          ? `Auto Proxy：当前页面经 ${route.action} 代理`
+          : "Auto Proxy：当前页面直连";
+      } catch (error) {
+        action = error instanceof Error && error.message.includes("请先") ? "未配置" : "未知";
+        title = "Auto Proxy：无法判断当前页面";
+      }
+    } else {
+      action = "已关闭";
     }
   }
-  await Promise.all([
-    chrome.action.setIcon({ tabId: tab.id, path: iconPaths(active) }),
-    chrome.action.setBadgeText({ tabId: tab.id, text: "" }),
-    chrome.action.setTitle({ tabId: tab.id, title }),
-  ]);
+  const state: ActiveSiteProxyStatus = {
+    tabId: tab.id,
+    url,
+    hostname,
+    action,
+    proxied: active,
+    engineEnabled,
+  };
+  const key = tabActionStateKey(tab.id);
+  const stored = await chrome.storage.session.get(key);
+  const previous = stored[key] as ActiveSiteProxyStatus | undefined;
+  const updates: Promise<unknown>[] = [chrome.storage.session.set({ [key]: state })];
+  if (!previous || previous.proxied !== state.proxied) {
+    updates.push(
+      chrome.action.setIcon({ tabId: tab.id, path: iconPaths(active) }),
+      chrome.action.setPopup({ tabId: tab.id, popup: `popup.html?proxied=${active ? "1" : "0"}` }),
+    );
+  }
+  if (!previous || previous.action !== state.action || previous.engineEnabled !== state.engineEnabled) {
+    updates.push(chrome.action.setTitle({ tabId: tab.id, title }));
+  }
+  if (!previous) updates.push(chrome.action.setBadgeText({ tabId: tab.id, text: "" }));
+  await Promise.all(updates);
+  return state;
+}
+
+export async function getActiveTabActionState(): Promise<ActiveSiteProxyStatus | undefined> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || tab.id === undefined) return undefined;
+  const key = tabActionStateKey(tab.id);
+  const stored = await chrome.storage.session.get(key);
+  const cached = stored[key] as ActiveSiteProxyStatus | undefined;
+  if (cached?.url === (tab.url ?? "")) return cached;
+  const status = await getProxyStatus();
+  return updateTab(tab, status.desiredEnabled && status.applied);
+}
+
+export async function removeTabActionState(tabId: number): Promise<void> {
+  await chrome.storage.session.remove(tabActionStateKey(tabId));
 }
 
 export async function syncActionState(tabId?: number, url?: string): Promise<void> {

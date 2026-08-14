@@ -4,6 +4,7 @@ export type RuntimeMessage =
   | { type: "GET_PROXY_STATUS" }
   | { type: "GET_CONFIG_DOCUMENT_STATE" }
   | { type: "GET_SITE_PROXY_STATUS"; input: string }
+  | { type: "GET_ACTIVE_SITE_PROXY_STATUS" }
   | { type: "GET_CONFIG_PROVIDER_CONTENT"; name: string }
   | { type: "APPLY_CONFIG_DOCUMENT"; yaml: string; sourceUrl?: string; refreshIntervalSeconds?: number }
   | { type: "REFRESH_CONFIG_PROVIDERS" }
@@ -17,6 +18,15 @@ export interface RuntimeResponse<T = unknown> {
   message?: string;
   data?: T;
   error?: string;
+}
+
+export interface ActiveSiteProxyStatus {
+  tabId: number;
+  url: string;
+  hostname: string;
+  action: string;
+  proxied: boolean;
+  engineEnabled: boolean;
 }
 
 export interface DiagnosticEvent {

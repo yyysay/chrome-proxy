@@ -4,7 +4,7 @@ import type {
   RuntimeResponse,
 } from "../shared/runtime-protocol.ts";
 import { INSTALL_TIME_KEY } from "../shared/storage-keys.ts";
-import { syncActionState } from "./action-state.ts";
+import { removeTabActionState, syncActionState } from "./action-state.ts";
 import {
   handleRefreshAlarm,
 } from "./alarms.ts";
@@ -76,6 +76,10 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.url || changeInfo.status === "complete") {
     void syncActionState(tabId, changeInfo.url).catch(() => undefined);
   }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  void removeTabActionState(tabId).catch(() => undefined);
 });
 
 chrome.proxy.settings.onChange.addListener((details) => {

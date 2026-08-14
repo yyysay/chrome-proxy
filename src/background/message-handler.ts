@@ -8,7 +8,7 @@ import {
 } from "../config/config-service.ts";
 import { disableProxy, enableProxy, getProxyStatus } from "../proxy/pac-controller.ts";
 import type { RuntimeMessage, RuntimeResponse } from "../shared/runtime-protocol.ts";
-import { syncActionState } from "./action-state.ts";
+import { getActiveTabActionState, syncActionState } from "./action-state.ts";
 import { clearDiagnosticEvents, getDiagnosticEvents } from "./diagnostics.ts";
 import { inspectNetworkInfo } from "./network-inspector.ts";
 
@@ -29,6 +29,8 @@ export async function handleMessage(message: RuntimeMessage): Promise<RuntimeRes
       return { ok: true, data: await getConfigDocumentState() };
     case "GET_SITE_PROXY_STATUS":
       return { ok: true, data: await getSiteProxyStatus(message.input) };
+    case "GET_ACTIVE_SITE_PROXY_STATUS":
+      return { ok: true, data: await getActiveTabActionState() };
     case "GET_CONFIG_PROVIDER_CONTENT":
       return { ok: true, data: await getConfigProviderContent(message.name) };
     case "APPLY_CONFIG_DOCUMENT": {

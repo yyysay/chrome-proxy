@@ -1,30 +1,36 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="group/popup">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/icons/icon-32.png" />
+    <script src="/popup-bootstrap.js"></script>
     <title>Auto Proxy</title>
   </head>
   <body class="m-0 bg-white font-sans text-stone-900 antialiased dark:bg-black dark:text-[#f5f5f7] dark:[color-scheme:dark]">
-    <main class="relative w-[400px] overflow-hidden bg-[#f3f3f1] dark:bg-[#19191b]">
+    <main class="relative w-[400px] overflow-hidden bg-[#fafaf8] dark:bg-[#19191b]">
       <header class="flex h-[88px] items-center gap-3 px-6">
-        <img id="popup-icon" src="/icons/icon-48.png" alt="" class="size-10 shrink-0 rounded-xl" aria-hidden="true" />
+        <span id="popup-icon" class="group/icon relative size-10 shrink-0" aria-hidden="true">
+          <img src="/icons/icon-48.png" alt="" class="absolute inset-0 size-full rounded-xl group-[.site-proxied]/popup:opacity-0 group-[.active]/icon:opacity-0" decoding="sync" fetchpriority="high" />
+          <img src="/icons/icon-active-48.png" alt="" class="absolute inset-0 size-full rounded-xl opacity-0 group-[.site-proxied]/popup:opacity-100 group-[.active]/icon:opacity-100" decoding="sync" fetchpriority="high" />
+        </span>
 
         <div class="min-w-0 flex-1">
-          <h1 class="truncate text-[17px] font-semibold tracking-[-.025em]">Auto Proxy</h1>
-          <p class="mt-0.5 text-[9px] font-semibold tracking-[.18em] text-stone-400 dark:text-white/30">SMART ROUTING</p>
+          <h1 class="truncate text-xl font-semibold">智能分流</h1>
         </div>
 
         <nav class="flex shrink-0 items-center gap-2" aria-label="快捷操作">
-          <div class="group/edit relative size-9 rounded-full">
-            <button id="popup-subscription-edit" class="absolute inset-0 z-10 size-full cursor-pointer rounded-full border-0 bg-transparent p-0 text-[0] text-transparent outline-none focus-visible:ring-2 focus-visible:ring-[#168cf1]/40 disabled:cursor-not-allowed disabled:opacity-45" type="button" aria-label="修改订阅"></button>
-            <span class="pointer-events-none grid size-9 place-items-center rounded-full bg-black/[.04] text-stone-500 ring-1 ring-black/[.025] transition duration-200 group-hover/edit:bg-black/[.075] group-hover/edit:text-stone-800 dark:bg-white/[.06] dark:text-white/45 dark:ring-white/[.035] dark:group-hover/edit:bg-white/[.1] dark:group-hover/edit:text-white/80" aria-hidden="true">
-              <svg class="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="m4 16-.75 4.25L7.5 19l11-11-3-3Z" />
-                <path d="m14 6 3 3" />
+          <div id="popup-subscription-control" class="group/subscription invisible relative">
+            <button id="popup-subscription-edit" class="flex h-9 w-[104px] cursor-pointer items-center justify-center gap-1.5 overflow-hidden rounded-full border-0 bg-[#168cf1]/10 px-3 text-[#087ee0] ring-1 ring-[#168cf1]/10 transition-[width,padding,background-color,color,box-shadow,scale] duration-300 ease-out hover:bg-[#168cf1]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168cf1]/35 active:scale-[.97] disabled:cursor-wait disabled:opacity-70 group-[.applied]/subscription:w-[88px] group-[.applied]/subscription:cursor-default group-[.applied]/subscription:bg-[#22c55e]/12 group-[.applied]/subscription:text-[#16a34a] group-[.applied]/subscription:opacity-100 group-[.applied]/subscription:ring-[#22c55e]/20 group-[.configured]/subscription:w-9 group-[.configured]/subscription:gap-0 group-[.configured]/subscription:bg-black/[.04] group-[.configured]/subscription:p-0 group-[.configured]/subscription:text-stone-500 group-[.configured]/subscription:ring-black/[.025] group-[.configured]/subscription:hover:bg-black/[.075] group-[.configured]/subscription:hover:text-stone-800 group-[.editor-open]/subscription:bg-[#168cf1]/15 group-[.editor-open]/subscription:text-[#087ee0] dark:bg-[#168cf1]/20 dark:text-[#58aefa] dark:ring-[#58aefa]/10 dark:group-[.applied]/subscription:bg-[#30d158]/15 dark:group-[.applied]/subscription:text-[#30d158] dark:group-[.applied]/subscription:ring-[#30d158]/20 dark:group-[.configured]/subscription:bg-white/[.06] dark:group-[.configured]/subscription:text-white/45 dark:group-[.configured]/subscription:ring-white/[.035] dark:group-[.configured]/subscription:hover:bg-white/[.1] dark:group-[.configured]/subscription:hover:text-white/80 dark:group-[.editor-open]/subscription:bg-[#168cf1]/20 dark:group-[.editor-open]/subscription:text-[#58aefa]" type="button" aria-label="添加订阅" aria-controls="popup-subscription-form" aria-expanded="false" title="添加订阅">
+              <svg class="size-[17px] shrink-0 group-[.applied]/subscription:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" />
+                <path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" />
               </svg>
-            </span>
+              <svg class="hidden size-[17px] shrink-0 group-[.applied]/subscription:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m6 12 4 4 8-9" />
+              </svg>
+              <span id="popup-subscription-entry-label" class="max-w-[60px] shrink-0 overflow-hidden whitespace-nowrap text-xs font-semibold opacity-100 transition-[max-width,opacity] duration-200 group-[.configured]/subscription:max-w-0 group-[.configured]/subscription:opacity-0">添加订阅</span>
+            </button>
           </div>
 
           <button id="open-settings" class="grid size-9 place-items-center rounded-full border-0 bg-black/[.04] p-0 text-stone-500 ring-1 ring-black/[.025] transition duration-200 hover:bg-black/[.075] hover:text-stone-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 active:scale-95 dark:bg-white/[.06] dark:text-white/45 dark:ring-white/[.035] dark:hover:bg-white/[.1] dark:hover:text-white/80" type="button" aria-label="高级设置" title="高级设置">
@@ -34,43 +40,58 @@
             </svg>
           </button>
         </nav>
-        <span id="popup-subscription-summary" hidden>尚未设置</span>
       </header>
 
       <section class="flex flex-col items-center px-6 pb-10 pt-5" aria-label="代理控制">
-        <button id="proxy-toggle" class="group relative h-[70px] w-[272px] shrink-0 overflow-hidden rounded-full bg-[#202020] p-1 shadow-[0_10px_30px_rgba(0,0,0,.10)] ring-1 ring-black/10 transition-[background-color,box-shadow,transform] duration-500 ease-out [&.active]:bg-[#19b957] [&.active]:shadow-[0_12px_34px_rgba(25,185,87,.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 active:scale-[.985] disabled:cursor-not-allowed disabled:opacity-45 dark:bg-[#080808] dark:ring-white/10 dark:[&.active]:bg-[#18ad52]" type="button" role="switch" aria-checked="false" aria-label="开启或关闭 Auto Proxy" title="正在读取配置" disabled>
-          <span class="absolute left-1 top-1 h-[62px] w-[132px] rounded-full bg-[#f5f5f3] shadow-[0_2px_10px_rgba(0,0,0,.16)] transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)] group-[.active]:translate-x-[132px] dark:bg-[#efefed]" aria-hidden="true"></span>
-          <span class="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-1/2 items-center justify-center gap-1 text-[18px] font-medium tracking-[-.025em] text-stone-900 transition-colors duration-300 group-[.active]:text-white/75" aria-hidden="true">
-            Direct<sup class="self-start pt-[19px] text-[8px] font-semibold tracking-normal opacity-55">01</sup>
+        <button id="proxy-toggle" class="group invisible relative isolate h-[66px] w-[264px] shrink-0 overflow-hidden rounded-full border-0 bg-[#202020] p-0 shadow-[0_10px_30px_rgba(0,0,0,.10)] transition-[box-shadow,scale] duration-300 ease-in-out active:scale-[.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#31d86f]/45 disabled:cursor-not-allowed disabled:opacity-45 [&.active]:duration-150 [&.active]:shadow-[0_0_0_1px_rgba(89,238,139,.22),0_0_24px_rgba(28,205,95,.30),0_12px_34px_rgba(20,144,70,.20)] dark:bg-[#080808]" type="button" role="switch" aria-checked="false" aria-label="开启或关闭 Auto Proxy" title="正在读取配置" disabled>
+          <span class="pointer-events-none absolute inset-0 rounded-[inherit] bg-white/15 transition-colors duration-500 group-[.active]:bg-[#72e99a]/30" aria-hidden="true"></span>
+          <span class="pointer-events-none absolute inset-[2px] z-[1] rounded-full bg-[#202020] transition-colors duration-500 group-[.active]:bg-[#0a3d24] dark:bg-[#080808] dark:group-[.active]:bg-[#06351d]" aria-hidden="true"></span>
+          <span class="pointer-events-none absolute inset-[2px] z-[2] overflow-hidden rounded-full opacity-0 transition-opacity duration-500 group-[.active]:opacity-100" aria-hidden="true">
+            <span class="absolute left-1/2 top-1/2 aspect-square w-[126%] -translate-x-1/2 -translate-y-1/2 animate-spin rounded-full bg-[conic-gradient(from_18deg,transparent_0deg,rgba(46,211,105,.14)_42deg,rgba(169,255,197,.46)_86deg,rgba(28,171,81,.10)_132deg,transparent_184deg,rgba(78,231,130,.30)_246deg,rgba(195,255,215,.24)_278deg,transparent_338deg)] opacity-80 blur-[20px] mix-blend-screen [animation-duration:8.7s] [animation-play-state:paused] group-[.active]:[animation-play-state:running]"></span>
+            <span class="absolute left-1/2 top-1/2 aspect-square w-[142%] -translate-x-1/2 -translate-y-1/2 animate-spin rounded-full bg-[radial-gradient(circle_at_27%_32%,rgba(131,255,173,.46)_0%,rgba(45,207,103,.17)_17%,transparent_35%),radial-gradient(circle_at_72%_66%,rgba(89,238,141,.38)_0%,rgba(21,151,73,.12)_20%,transparent_39%),radial-gradient(circle_at_68%_23%,rgba(213,255,226,.24)_0%,transparent_27%)] opacity-75 blur-[18px] mix-blend-screen [animation-direction:reverse] [animation-duration:11.9s] [animation-play-state:paused] group-[.active]:[animation-play-state:running]"></span>
+            <span class="absolute left-1/2 top-1/2 aspect-square w-[118%] -translate-x-1/2 -translate-y-1/2 animate-spin rounded-full bg-[conic-gradient(from_212deg,transparent_0deg,rgba(24,153,72,.10)_58deg,rgba(117,246,161,.28)_104deg,transparent_162deg,rgba(204,255,221,.20)_232deg,rgba(40,196,96,.12)_274deg,transparent_336deg)] opacity-65 blur-[14px] mix-blend-screen [animation-duration:6.4s] [animation-play-state:paused] group-[.active]:[animation-play-state:running]"></span>
           </span>
-          <span class="pointer-events-none absolute inset-y-0 right-0 z-10 flex w-1/2 items-center justify-center gap-1 text-[18px] font-medium tracking-[-.025em] text-white/70 transition-colors duration-300 group-[.active]:text-stone-900" aria-hidden="true">
-            Proxy<sup class="self-start pt-[19px] text-[8px] font-semibold tracking-normal opacity-55">02</sup>
-          </span>
+          <span class="pointer-events-none absolute left-1 top-1 z-10 h-[58px] w-[128px] translate-x-0 rounded-full bg-[#f5f5f3] shadow-[0_2px_10px_rgba(0,0,0,.16)] ring-1 ring-white/25 transition-[translate,background-color,box-shadow,ring-color] duration-400 ease-in-out will-change-transform group-[.active]:translate-x-[128px] group-[.active]:bg-[#effff4] group-[.active]:duration-300 group-[.active]:ease-[cubic-bezier(.2,.8,.2,1)] group-[.active]:shadow-[0_0_18px_rgba(83,235,134,.42),0_2px_10px_rgba(0,0,0,.14)] group-[.active]:ring-[#a9ffc4]/70 dark:bg-[#efefed]" aria-hidden="true"></span>
+          <span class="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-1/2 -translate-x-1.5 items-center justify-center text-[18px] font-medium tracking-[-.025em] text-[#baffcf] opacity-0 transition-[opacity,translate] duration-300 ease-in-out group-[.active]:translate-x-0 group-[.active]:duration-200 group-[.active]:ease-out group-[.active]:opacity-100" aria-hidden="true">关</span>
+          <span class="pointer-events-none absolute inset-y-0 right-0 z-20 flex w-1/2 translate-x-0 items-center justify-center text-[18px] font-medium tracking-[-.025em] text-white/75 transition-[opacity,translate] duration-300 ease-in-out group-[.active]:translate-x-1.5 group-[.active]:duration-200 group-[.active]:ease-out group-[.active]:opacity-0" aria-hidden="true">开</span>
           <span id="toggle-label" hidden>OFF</span>
         </button>
 
         <div class="mt-8 grid w-full grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] items-stretch gap-5" aria-label="当前网站代理状态">
           <div class="min-w-0">
-            <span class="block text-[9px] font-semibold tracking-[.16em] text-stone-400 dark:text-white/30">CURRENT SITE</span>
-            <span id="site-host" class="mt-1.5 block truncate text-[15px] font-medium leading-5 tracking-[-.015em]" title="当前网站">正在读取…</span>
+            <span class="block text-[9px] font-semibold tracking-[.16em] text-stone-400 dark:text-white/30">当前网站</span>
+            <span id="site-host" class="invisible mt-1.5 block truncate text-[15px] font-medium leading-5 tracking-[-.015em]" title="当前网站"></span>
           </div>
 
           <span class="w-px bg-black/[.075] dark:bg-white/10" aria-hidden="true"></span>
 
           <div class="min-w-0 text-right">
-            <span class="block text-[9px] font-semibold tracking-[.16em] text-stone-400 dark:text-white/30">EXIT NODE</span>
-            <span id="site-status" class="mt-1.5 block truncate text-[15px] font-medium leading-5 text-stone-600 data-[status-tone=error]:text-red-500 data-[status-tone=fresh]:text-[#13a84d] data-[status-tone=stale]:text-amber-500 dark:text-white/65 dark:data-[status-tone=error]:text-[#ff6961] dark:data-[status-tone=fresh]:text-[#30d158] dark:data-[status-tone=stale]:text-[#ff9f0a]" data-status-tone="idle" title="出口节点">等待</span>
+            <span class="block text-[9px] font-semibold tracking-[.16em] text-stone-400 dark:text-white/30">出口策略</span>
+            <span id="site-status" class="invisible mt-1.5 block truncate text-[15px] font-medium leading-5 text-stone-600 data-[status-tone=error]:text-red-500 data-[status-tone=fresh]:text-[#13a84d] data-[status-tone=stale]:text-amber-500 dark:text-white/65 dark:data-[status-tone=error]:text-[#ff6961] dark:data-[status-tone=fresh]:text-[#30d158] dark:data-[status-tone=stale]:text-[#ff9f0a]" data-status-tone="idle" title="出口节点"></span>
           </div>
         </div>
       </section>
 
-      <p id="popup-subscription-hint" class="pointer-events-none absolute bottom-2 left-1/2 z-20 m-0 max-w-[220px] -translate-x-1/2 truncate whitespace-nowrap rounded-full bg-black/[.055] px-3.5 py-2 text-center text-xs font-medium text-stone-500 ring-1 ring-black/[.03] dark:bg-white/[.08] dark:text-white/55 dark:ring-white/[.04]" role="status" aria-live="polite" hidden></p>
+      <form id="popup-subscription-form" class="pointer-events-none invisible absolute left-1/2 top-[66px] z-30 w-[340px] -translate-x-1/2 -translate-y-2 scale-[.12] rounded-[20px] bg-white/95 p-4 opacity-0 shadow-[0_18px_50px_rgba(0,0,0,.16)] ring-1 ring-black/[.06] backdrop-blur-xl transition-[opacity,scale,translate,visibility] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] [&.open]:pointer-events-auto [&.open]:visible [&.open]:translate-y-0 [&.open]:scale-100 [&.open]:opacity-100 dark:bg-[#2a2a2d]/95 dark:ring-white/[.08]" aria-labelledby="popup-subscription-title" aria-hidden="true" inert>
+        <div id="popup-subscription-content" class="relative">
+          <div class="mb-3">
+            <h2 id="popup-subscription-title" class="m-0 text-sm font-semibold tracking-[-.01em]">添加远程订阅</h2>
+          </div>
+          <label class="mb-1.5 block text-[11px] font-medium text-stone-500 dark:text-white/50" for="popup-subscription-url">订阅地址</label>
+          <input id="popup-subscription-url" class="h-10 w-full rounded-xl border-0 bg-black/[.045] px-3 text-xs text-stone-900 outline-none ring-1 ring-black/[.045] transition placeholder:text-stone-400 focus:bg-white focus:ring-2 focus:ring-[#168cf1]/30 aria-[invalid=true]:bg-red-500/[.035] aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-red-500/35 dark:bg-white/[.065] dark:text-white dark:ring-white/[.04] dark:placeholder:text-white/25 dark:focus:bg-white/[.08] dark:aria-[invalid=true]:bg-red-500/[.08]" type="url" placeholder="粘贴 YAML 订阅地址" autocomplete="url" aria-describedby="popup-subscription-error" required />
+          <p id="popup-subscription-error" class="mt-2 break-words text-[11px] leading-4 text-red-500 dark:text-[#ff6961]" role="alert" hidden></p>
+          <div class="mt-3 flex items-center justify-end gap-1.5">
+            <button id="popup-subscription-cancel" class="h-8 shrink-0 rounded-full border-0 bg-transparent px-3 text-xs font-medium text-stone-500 transition hover:bg-black/[.05] disabled:cursor-not-allowed disabled:opacity-35 dark:text-white/45 dark:hover:bg-white/[.07]" type="button">取消</button>
+            <button id="popup-subscription-submit" class="flex h-8 min-w-[82px] shrink-0 items-center justify-center gap-1.5 rounded-full border-0 bg-[#168cf1] px-4 text-xs font-semibold text-white shadow-[0_4px_12px_rgba(22,140,241,.22)] transition hover:bg-[#087ee0] active:scale-[.98] disabled:cursor-wait disabled:opacity-75" type="submit">
+              <svg id="popup-subscription-spinner" class="hidden size-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle class="opacity-30" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" />
+                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+              </svg>
+              <span id="popup-subscription-submit-label">应用订阅</span>
+            </button>
+          </div>
+        </div>
 
-      <form id="popup-subscription-form" class="absolute inset-x-5 top-[74px] z-30 flex h-10 items-center gap-1 rounded-full bg-[#e5e5e7] p-1 shadow-[0_8px_24px_rgba(0,0,0,.08)] ring-1 ring-black/[.04] dark:bg-[#303033] dark:ring-white/[.05]" hidden>
-        <label class="sr-only" for="popup-subscription-url">远程订阅地址</label>
-        <input id="popup-subscription-url" class="h-8 min-w-0 flex-1 rounded-full border-0 bg-white/80 px-3.5 text-xs outline-none ring-[#168cf1]/20 transition placeholder:text-stone-400 focus:ring-2 dark:bg-white/[.08] dark:placeholder:text-white/30" type="url" placeholder="粘贴 YAML 订阅地址" required />
-        <button id="popup-subscription-cancel" class="h-8 shrink-0 rounded-full px-3 text-xs font-medium text-stone-500 transition hover:bg-black/[.05] dark:text-white/45 dark:hover:bg-white/[.07]" type="button">取消</button>
-        <button id="popup-subscription-submit" class="h-8 shrink-0 rounded-full bg-[#168cf1] px-3.5 text-xs font-medium text-white transition hover:bg-[#087ee0] disabled:opacity-45" type="submit">应用</button>
       </form>
     </main>
     <script type="module" src="/src/popup/popup.ts"></script>
