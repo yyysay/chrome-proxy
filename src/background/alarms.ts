@@ -7,6 +7,7 @@ import {
 import { reconcileProxy } from "../proxy/pac-controller.ts";
 import { syncActionState } from "./action-state.ts";
 import { recordDiagnosticEvent } from "./diagnostics.ts";
+import { clearTabRequestRouteStates } from "./request-route-state.ts";
 
 let refreshQueue: Promise<void> = Promise.resolve();
 
@@ -18,6 +19,7 @@ export function handleRefreshAlarm(alarm: chrome.alarms.Alarm): void {
   refreshQueue = refreshQueue.catch(() => undefined).then(async () => {
       await refresh();
       await reconcileProxy(true);
+      await clearTabRequestRouteStates();
       await syncActionState();
     });
   void refreshQueue.catch((error: unknown) => {

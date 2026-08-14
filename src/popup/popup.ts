@@ -2,7 +2,12 @@ import "../ui/ui.css";
 import { validateConfigDocument } from "../config/config-document.ts";
 import type { ConfigDocumentState } from "../config/config-runtime.ts";
 import type { ProxyStatus } from "../proxy/pac-controller.ts";
-import type { ActiveSiteProxyStatus } from "../shared/runtime-protocol.ts";
+import type {
+  ActiveSiteProxyStatus,
+  ActiveTabRequestRoutes,
+  TabRequestRouteGroup,
+} from "../shared/runtime-protocol.ts";
+import { TAB_REQUEST_ROUTE_STATE_PREFIX } from "../shared/storage-keys.ts";
 import { fetchRemoteYaml, requestUrlPermissions, sendMessage } from "../settings/runtime-client.ts";
 
 function requiredElement<T extends Element>(selector: string): T {
@@ -17,8 +22,18 @@ const proxyToggleButton = requiredElement<HTMLButtonElement>("#proxy-toggle");
 const toggleLabel = requiredElement<HTMLElement>("#toggle-label");
 const popupIcon = requiredElement<HTMLElement>("#popup-icon");
 const popupIconImages = [...popupIcon.querySelectorAll<HTMLImageElement>("img")];
+const siteRoutes = requiredElement<HTMLElement>("#site-routes");
 const siteHost = requiredElement<HTMLElement>("#site-host");
-const siteStatus = requiredElement<HTMLElement>("#site-status");
+const siteRouteCount = requiredElement<HTMLElement>("#site-route-count");
+const siteRouteCapsules = requiredElement<HTMLElement>("#site-route-capsules");
+const siteRouteEmpty = requiredElement<HTMLElement>("#site-route-empty");
+const siteRouteDetails = requiredElement<HTMLElement>("#site-route-details");
+const siteRouteDetailsCard = requiredElement<HTMLElement>("#site-route-details-card");
+const siteRouteDetailsTitle = requiredElement<HTMLElement>("#site-route-details-title");
+const siteRouteDetailsCount = requiredElement<HTMLElement>("#site-route-details-count");
+const siteRouteDomains = requiredElement<HTMLUListElement>("#site-route-domains");
+const siteRouteCapsuleTemplate = requiredElement<HTMLTemplateElement>("#site-route-capsule-template");
+const siteRouteDomainTemplate = requiredElement<HTMLTemplateElement>("#site-route-domain-template");
 const subscriptionForm = requiredElement<HTMLFormElement>("#popup-subscription-form");
 const subscriptionInput = requiredElement<HTMLInputElement>("#popup-subscription-url");
 const subscriptionSubmit = requiredElement<HTMLButtonElement>("#popup-subscription-submit");
@@ -38,6 +53,10 @@ let togglePending = false;
 let engineRendered = false;
 let subscriptionRendered = false;
 let subscriptionEditorOpen = false;
+let siteRoutesRendered = false;
+let activeRouteTabId: number | undefined;
+let selectedRouteAction: string | undefined;
+let routeRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 const popupIconDecoded = Promise.all(popupIconImages.map(async (image) => {
   try {
     await image.decode();
@@ -139,21 +158,118 @@ async function renderPopupIcon(proxied: boolean): Promise<void> {
   document.documentElement.classList.remove("site-proxied");
 }
 
+function routeActionLabel(action: string): string {
+  return action === "DIRECT" ? "直连" : action;
+}
+
+function routeTone(group: TabRequestRouteGroup): "proxy" | "direct" {
+  return group.proxied ? "proxy" : "direct";
+}
+
+function setSelectedRouteGroup(group?: TabRequestRouteGroup): void {
+  selectedRouteAction = group?.action;
+  for (const button of siteRouteCapsules.querySelectorAll<HTMLButtonElement>("button[data-route-action]")) {
+    const selected = button.dataset.routeAction === selectedRouteAction;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-expanded", String(selected));
+  }
+  siteRouteDetails.classList.toggle("open", Boolean(group));
+  if (!group) {
+    siteRouteDetails.setAttribute("aria-hidden", "true");
+    return;
+  }
+  const tone = routeTone(group);
+  siteRouteDetails.setAttribute("aria-hidden", "false");
+  siteRouteDetailsCard.dataset.routeTone = tone;
+  siteRouteDetailsTitle.dataset.routeTone = tone;
+  siteRouteDetailsTitle.textContent = routeActionLabel(group.action);
+  siteRouteDetailsCount.textContent = `${group.domains.length} 个域名`;
+  const domains = document.createDocumentFragment();
+  for (const hostname of group.domains) {
+    const item = siteRouteDomainTemplate.content.firstElementChild?.cloneNode(true);
+    if (!(item instanceof HTMLLIElement)) continue;
+    const label = item.querySelector<HTMLElement>("[data-route-domain-label]");
+    const copyButton = item.querySelector<HTMLButtonElement>("[data-route-domain-copy]");
+    if (!label || !copyButton) continue;
+    label.textContent = hostname;
+    item.title = hostname;
+    copyButton.setAttribute("aria-label", `复制 ${hostname}`);
+    copyButton.addEventListener("click", () => {
+      void navigator.clipboard.writeText(hostname).then(() => {
+        copyButton.classList.add("copied");
+        copyButton.setAttribute("aria-label", `${hostname} 已复制`);
+        copyButton.title = "已复制";
+        setTimeout(() => {
+          copyButton.classList.remove("copied");
+          copyButton.setAttribute("aria-label", `复制 ${hostname}`);
+          copyButton.title = "复制域名";
+        }, 1_200);
+      }).catch((error: unknown) => {
+        console.error("复制域名失败", error);
+      });
+    });
+    domains.append(item);
+  }
+  siteRouteDomains.replaceChildren(domains);
+}
+
+function renderRequestRoutes(summary: ActiveTabRequestRoutes | undefined, fallbackHostname = "当前页面"): void {
+  activeRouteTabId = summary?.tabId;
+  siteHost.textContent = summary?.pageHostname || fallbackHostname;
+  siteRouteCount.textContent = summary ? `${summary.totalDomains} 个域名` : "";
+  siteRouteCapsules.replaceChildren();
+  const groups = summary?.groups ?? [];
+  siteRouteEmpty.hidden = groups.length > 0;
+  siteRouteEmpty.textContent = summary ? "正在收集本页请求…" : "此页面无法分析";
+
+  for (const group of groups) {
+    const fragment = siteRouteCapsuleTemplate.content.cloneNode(true) as DocumentFragment;
+    const button = fragment.querySelector<HTMLButtonElement>("button");
+    const action = fragment.querySelector<HTMLElement>("[data-route-field=action]");
+    const count = fragment.querySelector<HTMLElement>("[data-route-field=count]");
+    if (!button || !action || !count) continue;
+    const label = routeActionLabel(group.action);
+    button.dataset.routeAction = group.action;
+    button.dataset.routeTone = routeTone(group);
+    button.setAttribute("aria-label", `${label}，${group.domains.length} 个域名`);
+    button.setAttribute("aria-expanded", "false");
+    button.setAttribute("aria-controls", "site-route-details");
+    action.textContent = label;
+    action.title = label;
+    count.textContent = String(group.domains.length);
+    button.addEventListener("click", () => {
+      setSelectedRouteGroup(selectedRouteAction === group.action ? undefined : group);
+    });
+    siteRouteCapsules.append(fragment);
+  }
+
+  const selected = groups.find((group) => group.action === selectedRouteAction);
+  setSelectedRouteGroup(selected);
+  if (!siteRoutesRendered) {
+    revealStable(siteRoutes);
+    siteRoutesRendered = true;
+  }
+}
+
+async function refreshRequestRoutes(): Promise<void> {
+  const response = await sendMessage<ActiveTabRequestRoutes | undefined>({ type: "GET_ACTIVE_TAB_REQUEST_ROUTES" });
+  if (!response.ok) return;
+  renderRequestRoutes(response.data, siteHost.textContent || "当前页面");
+}
+
 async function refreshSite(): Promise<void> {
-  const response = await sendMessage<ActiveSiteProxyStatus>({ type: "GET_ACTIVE_SITE_PROXY_STATUS" });
-  if (!response.ok || !response.data) {
-    siteHost.textContent = "当前页面";
-    siteStatus.textContent = "未知";
-    siteStatus.dataset.statusTone = "error";
+  const [siteResponse, routesResponse] = await Promise.all([
+    sendMessage<ActiveSiteProxyStatus>({ type: "GET_ACTIVE_SITE_PROXY_STATUS" }),
+    sendMessage<ActiveTabRequestRoutes | undefined>({ type: "GET_ACTIVE_TAB_REQUEST_ROUTES" }),
+  ]);
+  let fallbackHostname = "当前页面";
+  if (!siteResponse.ok || !siteResponse.data) {
     await renderPopupIcon(false);
   } else {
-    siteHost.textContent = response.data.hostname;
-    siteStatus.textContent = response.data.engineEnabled ? response.data.action : response.data.action === "不可用" ? "不可用" : "已关闭";
-    siteStatus.dataset.statusTone = response.data.proxied ? "fresh" : "idle";
-    await renderPopupIcon(response.data.proxied);
+    fallbackHostname = siteResponse.data.hostname;
+    await renderPopupIcon(siteResponse.data.proxied);
   }
-  siteHost.classList.remove("invisible");
-  siteStatus.classList.remove("invisible");
+  renderRequestRoutes(routesResponse.ok ? routesResponse.data : undefined, fallbackHostname);
 }
 
 async function refreshState(): Promise<void> {
@@ -206,6 +322,17 @@ subscriptionCancel.addEventListener("click", () => {
   subscriptionInput.value = subscriptionSourceUrl;
   setSubscriptionFeedback("idle");
   setSubscriptionEditor(false);
+});
+
+chrome.storage?.onChanged?.addListener((changes, areaName) => {
+  if (areaName !== "session" || activeRouteTabId === undefined) return;
+  const key = `${TAB_REQUEST_ROUTE_STATE_PREFIX}${activeRouteTabId}`;
+  if (!(key in changes)) return;
+  if (routeRefreshTimer !== undefined) clearTimeout(routeRefreshTimer);
+  routeRefreshTimer = setTimeout(() => {
+    routeRefreshTimer = undefined;
+    void refreshRequestRoutes().catch(() => undefined);
+  }, 120);
 });
 
 document.addEventListener("keydown", (event) => {
@@ -262,9 +389,5 @@ void refreshState().catch((error: unknown) => {
     engineRendered = true;
   }
   void renderPopupIcon(false);
-  siteHost.textContent = "状态读取失败";
-  siteStatus.textContent = "错误";
-  siteStatus.dataset.statusTone = "error";
-  siteHost.classList.remove("invisible");
-  siteStatus.classList.remove("invisible");
+  renderRequestRoutes(undefined, "状态读取失败");
 });

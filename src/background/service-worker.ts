@@ -15,6 +15,7 @@ import {
 import { handleMessage } from "./message-handler.ts";
 import { scheduleReconcile } from "./reconcile-scheduler.ts";
 import { syncConfigRefreshAlarms } from "../config/config-runtime.ts";
+import { recordTabRequestRoute, removeTabRequestRouteState } from "./request-route-state.ts";
 
 async function initializeExtension(reason: string): Promise<void> {
   await migrateStoredData();
@@ -36,14 +37,15 @@ async function initializeExtension(reason: string): Promise<void> {
   // 开发模式更新 dist 后，Chrome 会重新加载扩展并清除它控制的设置。
   // onInstalled 在重新加载完成后触发，此时再根据持久状态恢复 PAC。
   scheduleReconcile(`runtime.${reason}`);
-  await syncActionState();
+  // storage.session 可能保留旧缓存，但扩展重载会清除 tab 级 action 覆盖，必须强制恢复。
+  await syncActionState(undefined, undefined, true);
 }
 
 async function restoreExtensionOnStartup(): Promise<void> {
   await migrateStoredData();
   await syncConfigRefreshAlarms();
   scheduleReconcile("runtime.startup");
-  await syncActionState();
+  await syncActionState(undefined, undefined, true);
 }
 
 chrome.runtime.onInstalled.addListener((details) => {
@@ -68,18 +70,34 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.alarms.onAlarm.addListener(handleRefreshAlarm);
 
+chrome.webRequest.onBeforeRequest.addListener(
+  (details) => {
+    recordTabRequestRoute(details);
+    if (details.type === "main_frame" && details.tabId >= 0) {
+      // 比 tabs.onUpdated 更早写入 icon 与 popup 首帧状态，避免导航后短暂沿用上一页。
+      void syncActionState(details.tabId, details.url).catch(() => undefined);
+    }
+    return undefined;
+  },
+  { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] },
+);
+
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   void syncActionState(tabId).catch(() => undefined);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.url || changeInfo.status === "complete") {
-    void syncActionState(tabId, changeInfo.url).catch(() => undefined);
+    // Chrome 在同 URL 刷新时可能重置 tab 级 action 覆盖；complete 阶段必须重新写入。
+    void syncActionState(tabId, changeInfo.url, changeInfo.status === "complete").catch(() => undefined);
   }
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  void removeTabActionState(tabId).catch(() => undefined);
+  void Promise.all([
+    removeTabActionState(tabId),
+    removeTabRequestRouteState(tabId),
+  ]).catch(() => undefined);
 });
 
 chrome.proxy.settings.onChange.addListener((details) => {

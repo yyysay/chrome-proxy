@@ -11,16 +11,19 @@ import type { RuntimeMessage, RuntimeResponse } from "../shared/runtime-protocol
 import { getActiveTabActionState, syncActionState } from "./action-state.ts";
 import { clearDiagnosticEvents, getDiagnosticEvents } from "./diagnostics.ts";
 import { inspectNetworkInfo } from "./network-inspector.ts";
+import { clearTabRequestRouteStates, getActiveTabRequestRoutes } from "./request-route-state.ts";
 
 export async function handleMessage(message: RuntimeMessage): Promise<RuntimeResponse> {
   switch (message.type) {
     case "ENABLE_PROXY": {
       const config = await enableProxy();
+      await clearTabRequestRouteStates();
       await syncActionState();
       return { ok: true, message: `代理已启用：http://${config.host}:${config.port}` };
     }
     case "DISABLE_PROXY":
       await disableProxy();
+      await clearTabRequestRouteStates();
       await syncActionState();
       return { ok: true, message: "扩展代理设置已关闭" };
     case "GET_PROXY_STATUS":
@@ -31,15 +34,20 @@ export async function handleMessage(message: RuntimeMessage): Promise<RuntimeRes
       return { ok: true, data: await getSiteProxyStatus(message.input) };
     case "GET_ACTIVE_SITE_PROXY_STATUS":
       return { ok: true, data: await getActiveTabActionState() };
+    case "GET_ACTIVE_TAB_REQUEST_ROUTES":
+      return { ok: true, data: await getActiveTabRequestRoutes() };
     case "GET_CONFIG_PROVIDER_CONTENT":
       return { ok: true, data: await getConfigProviderContent(message.name) };
     case "APPLY_CONFIG_DOCUMENT": {
       const result = await applyConfigDocument(message.yaml, message.sourceUrl, message.refreshIntervalSeconds);
+      await clearTabRequestRouteStates();
       await syncActionState();
       return { ok: true, data: result, message: result.pacReapplied ? "配置已保存，PAC 已重新生成" : "配置已保存；开启扩展后生效" };
     }
     case "REFRESH_CONFIG_PROVIDERS": {
       const result = await refreshConfigProviders();
+      await clearTabRequestRouteStates();
+      await syncActionState();
       return { ok: true, data: result, message: `规则包更新完成：成功 ${result.refreshed}，缓存 ${result.cached}` };
     }
     case "GET_NETWORK_INFO":

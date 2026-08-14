@@ -7,16 +7,12 @@
     "storage",
     "tabs",
     "proxy",
+    "webRequest",
     "alarms",
     "clipboardWrite"
   ],
   "host_permissions": [
-    "https://raw.githubusercontent.com/*",
-    "https://api.ip.sb/*"
-  ],
-  "optional_host_permissions": [
-    "http://*/*",
-    "https://*/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "assets/service-worker.js",

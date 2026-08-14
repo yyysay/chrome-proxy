@@ -16,7 +16,11 @@ function iconPaths(active: boolean): Record<number, string> {
   };
 }
 
-async function updateTab(tab: chrome.tabs.Tab, engineEnabled: boolean): Promise<ActiveSiteProxyStatus | undefined> {
+async function updateTab(
+  tab: chrome.tabs.Tab,
+  engineEnabled: boolean,
+  forceAppearanceUpdate = false,
+): Promise<ActiveSiteProxyStatus | undefined> {
   if (tab.id === undefined) return undefined;
   const url = tab.url ?? "";
   let hostname = tab.title || "浏览器内部页面";
@@ -53,16 +57,26 @@ async function updateTab(tab: chrome.tabs.Tab, engineEnabled: boolean): Promise<
   const stored = await chrome.storage.session.get(key);
   const previous = stored[key] as ActiveSiteProxyStatus | undefined;
   const updates: Promise<unknown>[] = [chrome.storage.session.set({ [key]: state })];
-  if (!previous || previous.proxied !== state.proxied) {
+  if (
+    forceAppearanceUpdate ||
+    !previous ||
+    previous.url !== state.url ||
+    previous.proxied !== state.proxied
+  ) {
     updates.push(
       chrome.action.setIcon({ tabId: tab.id, path: iconPaths(active) }),
       chrome.action.setPopup({ tabId: tab.id, popup: `popup.html?proxied=${active ? "1" : "0"}` }),
     );
   }
-  if (!previous || previous.action !== state.action || previous.engineEnabled !== state.engineEnabled) {
+  if (
+    forceAppearanceUpdate ||
+    !previous ||
+    previous.action !== state.action ||
+    previous.engineEnabled !== state.engineEnabled
+  ) {
     updates.push(chrome.action.setTitle({ tabId: tab.id, title }));
   }
-  if (!previous) updates.push(chrome.action.setBadgeText({ tabId: tab.id, text: "" }));
+  if (forceAppearanceUpdate || !previous) updates.push(chrome.action.setBadgeText({ tabId: tab.id, text: "" }));
   await Promise.all(updates);
   return state;
 }
@@ -82,7 +96,7 @@ export async function removeTabActionState(tabId: number): Promise<void> {
   await chrome.storage.session.remove(tabActionStateKey(tabId));
 }
 
-export async function syncActionState(tabId?: number, url?: string): Promise<void> {
+export async function syncActionState(tabId?: number, url?: string, forceAppearanceUpdate = false): Promise<void> {
   const status = await getProxyStatus();
   const engineEnabled = status.desiredEnabled && status.applied;
   let tabs: chrome.tabs.Tab[];
@@ -97,7 +111,7 @@ export async function syncActionState(tabId?: number, url?: string): Promise<voi
     tabs = await chrome.tabs.query({});
   }
   const results = await Promise.allSettled(tabs.filter((tab) => tab.id !== undefined)
-    .map((tab) => updateTab(tab, engineEnabled)));
+    .map((tab) => updateTab(tab, engineEnabled, forceAppearanceUpdate)));
   for (const result of results) {
     if (result.status === "rejected") console.warn("Unable to update action appearance", result.reason);
   }

@@ -5,6 +5,7 @@ export type RuntimeMessage =
   | { type: "GET_CONFIG_DOCUMENT_STATE" }
   | { type: "GET_SITE_PROXY_STATUS"; input: string }
   | { type: "GET_ACTIVE_SITE_PROXY_STATUS" }
+  | { type: "GET_ACTIVE_TAB_REQUEST_ROUTES" }
   | { type: "GET_CONFIG_PROVIDER_CONTENT"; name: string }
   | { type: "APPLY_CONFIG_DOCUMENT"; yaml: string; sourceUrl?: string; refreshIntervalSeconds?: number }
   | { type: "REFRESH_CONFIG_PROVIDERS" }
@@ -27,6 +28,21 @@ export interface ActiveSiteProxyStatus {
   action: string;
   proxied: boolean;
   engineEnabled: boolean;
+}
+
+export interface TabRequestRouteGroup {
+  action: string;
+  proxied: boolean;
+  domains: string[];
+}
+
+export interface ActiveTabRequestRoutes {
+  tabId: number;
+  pageUrl: string;
+  pageHostname: string;
+  engineEnabled: boolean;
+  totalDomains: number;
+  groups: TabRequestRouteGroup[];
 }
 
 export interface DiagnosticEvent {

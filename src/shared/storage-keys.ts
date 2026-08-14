@@ -10,3 +10,4 @@ export const CONFIG_DOCUMENT_URL_KEY = "configDocumentUrl";
 export const CONFIG_DOCUMENT_REMOTE_STATUS_KEY = "configDocumentRemoteStatus";
 export const CONFIG_DOCUMENT_REFRESH_INTERVAL_KEY = "configDocumentRefreshIntervalSeconds";
 export const CONFIG_PROVIDER_CACHE_KEY = "configProviderCache";
+export const TAB_REQUEST_ROUTE_STATE_PREFIX = "tab-request-route-state:";
